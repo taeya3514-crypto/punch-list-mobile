@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<title>스마트 펀치리스트 모바일 (2호)</title>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* 1호(index.html)와 동일한 팔레트를 재사용 — 같은 팀 앱이라는 시각적 일관성 유지 */
+  :root {
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --primary: #38bdf8;
+    --primary-hover: #0284c7;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-size: 17px;
+    padding: 10px 10px calc(96px + env(safe-area-inset-bottom)) 10px;
+    min-height: 100vh;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    position: sticky; top: 0; z-index: 900;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  header h1 { font-size: 1.15rem; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 8px; line-height: 1.25; }
+  header h1 img { height: 34px; width: auto; border-radius: 6px; }
+  .header-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn {
+    background: #0f172a; border: 1.5px solid var(--card-border); color: var(--text);
+    width: 40px; height: 40px; border-radius: 10px; font-size: 1.15rem;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn:active { background: #26334d; }
+
+  /* ── 동기화 상태 칩 / 배너 ── */
+  .sync-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; white-space: nowrap; }
+  .sync-chip-ok { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid var(--success); }
+  .sync-chip-pending { background: rgba(56,189,248,0.15); color: var(--primary); border: 1px solid var(--primary); }
+  .sync-chip-fail { background: rgba(239,68,68,0.18); color: #fca5a5; border: 1px solid var(--danger); cursor: pointer; }
+  #fail-banner {
+    display: none; align-items: center; justify-content: space-between; gap: 10px;
+    background: rgba(239,68,68,0.15); border: 1.5px solid var(--danger); color: #fecaca;
+    padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; font-weight: 800; cursor: pointer;
+  }
+  #offline-banner {
+    display: none; align-items: center; gap: 8px;
+    background: rgba(245,158,11,0.15); border: 1.5px solid var(--warning); color: #fde68a;
+    padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; font-weight: 800; font-size: 0.9rem;
+  }
+
+  /* ── 통계 바 ── */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .stat-card { background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px; padding: 10px 4px; text-align: center; cursor: pointer; }
+  .stat-card.active { border-color: var(--primary); background: rgba(2,132,199,0.15); }
+  .stat-card:active { transform: scale(0.96); }
+  .stat-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
+  .stat-val { font-size: 1.35rem; font-weight: 900; margin-top: 2px; color: var(--primary); }
+
+  /* ── 필터 트리거 ── */
+  .filter-trigger-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .filter-trigger-btn {
+    flex: 1; background: var(--card-bg); border: 1.5px solid var(--card-border); color: var(--text);
+    padding: 12px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .filter-trigger-btn.has-active { border-color: var(--primary); color: var(--primary); }
+
+  /* ── 카드 목록 ── */
+  #card-list { display: flex; flex-direction: column; gap: 10px; }
+  .p-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: 16px; padding: 14px; cursor: pointer; transition: border-color .15s; }
+  .p-card:active { border-color: var(--primary); }
+  .p-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .p-card-id { font-size: 1rem; font-weight: 900; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 7px; font-size: 0.82rem; font-weight: 800; }
+  .badge-new { background: #ef4444; color: #fff; }
+  .badge-proc { background: #f59e0b; color: #fff; }
+  .badge-done { background: #22c55e; color: #fff; }
+  .p-card-loc { font-size: 1.3rem; font-weight: 900; color: var(--text); margin-bottom: 4px; }
+  .p-card-sub { font-size: 1rem; color: var(--text-muted); font-weight: 700; }
+  .p-card-meta { font-size: 0.95rem; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; }
+  .p-card-content { font-size: 0.95rem; color: #e2e8f0; background: #0f172a; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+  .p-card-photos { display: flex; gap: 8px; }
+  .p-photo-slot { position: relative; flex: 1; height: 92px; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--card-border); background: #0b1220; }
+  .p-photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+  .p-photo-empty { display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: var(--text-muted); font-weight: 700; text-align: center; }
+  .p-photo-tag { position: absolute; left: 4px; bottom: 4px; background: rgba(15,23,42,0.75); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 5px; }
+
+  .empty-state { padding: 60px 16px; text-align: center; color: var(--text-muted); font-size: 1.1rem; font-weight: 700; }
+
+  /* ── FAB ── */
+  #fab-add {
+    position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; border-radius: 50%; background: var(--primary); color: #0f172a;
+    border: none; font-size: 1.8rem; font-weight: 900; box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center; z-index: 1200; cursor: pointer;
+  }
+  #fab-add:active { background: var(--primary-hover); transform: scale(0.95); }
+
+  /* ── 바텀시트 공통 (필터) ── */
+  .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1500; display: flex; align-items: flex-end; }
+  .sheet-overlay.hidden { display: none !important; }
+  .sheet { width: 100%; max-height: 85vh; overflow-y: auto; background: var(--card-bg); border-radius: 20px 20px 0 0; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)) 16px; border-top: 2px solid var(--card-border); }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .sheet-header h3 { font-size: 1.2rem; font-weight: 900; color: var(--primary); }
+  .sheet-body { display: flex; flex-direction: column; gap: 10px; }
+
+  select, input[type="text"], textarea {
+    width: 100%; background: #0f172a; border: 1.8px solid var(--card-border); color: var(--text);
+    padding: 13px 12px; border-radius: 10px; font-size: 1.05rem; font-weight: 700; outline: none;
+  }
+  select:focus, input:focus, textarea:focus { border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+  .btn { background: #334155; color: #fff; border: none; padding: 13px 16px; border-radius: 10px; font-weight: 800; font-size: 1rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; }
+  .btn:active { background: #475569; }
+  .btn-primary { background: var(--primary); color: #0f172a; }
+  .btn-primary:active { background: var(--primary-hover); color: #fff; }
+  .btn-ghost { background: transparent; border: 1.8px solid var(--card-border); color: var(--text-muted); }
+
+  .close-x { background: none; border: none; color: var(--text-muted); font-size: 1.8rem; cursor: pointer; line-height: 1; }
+
+  /* ── 등록/수정 모달: 화면을 꽉 채우는 풀시트 ── */
+  #punch-modal.sheet-overlay { align-items: stretch; }
+  #punch-modal .sheet { max-height: 100vh; height: 100%; border-radius: 0; display: flex; flex-direction: column; padding: 0; }
+  .modal-topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1.5px solid var(--card-border); position: sticky; top: 0; background: var(--card-bg); z-index: 5; }
+  .modal-topbar h3 { font-size: 1.15rem; font-weight: 900; color: var(--primary); }
+  .modal-scroll { flex: 1; overflow-y: auto; padding: 16px; }
+  .modal-bottombar { position: sticky; bottom: 0; background: var(--card-bg); border-top: 1.5px solid var(--card-border); padding: 12px 16px calc(14px + env(safe-area-inset-bottom)) 16px; }
+
+  .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field-group label { font-size: 1rem; font-weight: 800; color: var(--primary); }
+  .field-hint { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+
+  /* 사진 먼저 — 폼 맨 위에 큼직하게 배치 */
+  .photo-first-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .photo-slot-box { background: #0f172a; border: 2px dashed var(--card-border); border-radius: 14px; padding: 8px; text-align: center; }
+  .photo-slot-box.has-photo { border-style: solid; border-color: var(--primary); }
+  .photo-slot-label { font-size: 0.85rem; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; }
+  .photo-slot-preview { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; margin-bottom: 8px; display: none; }
+  .photo-slot-preview.show { display: block; }
+  .photo-slot-empty { height: 150px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px; }
+  .photo-cap-btn { width: 100%; padding: 12px 6px; font-size: 0.95rem; }
+  .photo-clear-btn { width: 100%; padding: 8px 6px; font-size: 0.82rem; margin-top: 6px; background: transparent; border: 1.5px solid var(--danger); color: #fca5a5; }
+  .file-input-hidden { display: none; }
+
+  .card-sync-note { font-size: 0.85rem; font-weight: 700; padding: 8px 10px; border-radius: 8px; margin-bottom: 14px; }
+  .card-sync-note.ok { background: rgba(34,197,94,0.12); color: var(--success); }
+  .card-sync-note.fail { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+  /* ── 사진 원본보기 모달 ── */
+  #img-modal { z-index: 2500; }
+  #img-modal .sheet { border-radius: 16px; margin: auto; max-width: 640px; align-self: center; padding: 14px; }
+  #img-modal-target { width: 100%; max-height: 78vh; object-fit: contain; border-radius: 10px; }
+
+  /* ── 토스트 / 로딩 ── */
+  #toast { position: fixed; left: 12px; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); background: #0284c7; color: #fff; padding: 14px 18px; border-radius: 12px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 3000; display: none; }
+  .loading-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.75); display: flex; align-items: center; justify-content: center; z-index: 4000; font-size: 1.15rem; font-weight: 900; color: var(--primary); }
+  .loading-overlay.hidden { display: none !important; }
+
+  /* 사용방법 시트 */
+  #help-sheet .sheet-body { font-size: 0.95rem; line-height: 1.8; color: #e2e8f0; }
+  #help-sheet ol { padding-left: 18px; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay hidden"><div id="loading-msg">⏳ 불러오는 중...</div></div>
+<div id="toast"></div>
+
+<header>
+  <h1>
+    <img src="https://drive.google.com/thumbnail?id=19X-FeteoZBILoDPpJ1FnuQgd4FNVtV6q&sz=w80" alt="태야">
+    스마트 펀치리스트<br>모바일(2호)
+  </h1>
+  <div class="header-btns">
+    <button class="icon-btn" onclick="loadList(true)" title="새로고침">🔄</button>
+    <button class="icon-btn" onclick="openHelpSheet()" title="사용방법">❓</button>
+  </div>
+</header>
+
+<div id="offline-banner"><span>📴 오프라인 — 인터넷이 연결되면 자동으로 저장됩니다</span></div>
+<div id="fail-banner" onclick="retryAllFailed()">
+  <span id="fail-banner-text">⚠️ 동기화 실패</span>
+  <span class="sync-chip sync-chip-fail">전체 재시도</span>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card" data-status="" onclick="filterByStat('')">
+    <div class="stat-label">전체</div><div class="stat-val" id="st-total">0</div>
+  </div>
+  <div class="stat-card" data-status="신규" onclick="filterByStat('신규')">
+    <div class="stat-label">신규</div><div class="stat-val" id="st-new" style="color:var(--danger)">0</div>
+  </div>
+  <div class="stat-card" data-status="조치중" onclick="filterByStat('조치중')">
+    <div class="stat-label">조치중</div><div class="stat-val" id="st-proc" style="color:var(--warning)">0</div>
+  </div>
+  <div class="stat-card" data-status="완료" onclick="filterByStat('완료')">
+    <div class="stat-label">완료</div><div class="stat-val" id="st-done" style="color:var(--success)">0</div>
+  </div>
+</div>
+
+<div class="filter-trigger-row">
+  <button class="filter-trigger-btn" id="filter-trigger-btn" onclick="openFilterSheet()">🔍 필터</button>
+  <button class="filter-trigger-btn" id="sync-indicator" onclick="onSyncChipTap()">✅ 모두 동기화됨</button>
+</div>
+
+<div id="card-list"></div>
+<div id="empty" class="empty-state" style="display:none;">등록된 펀치가 없습니다.<br>오른쪽 아래 + 버튼으로 새로 등록하세요.</div>
+
+<button id="fab-add" onclick="openAddModal()">＋</button>
+
+<!-- 필터 바텀시트 -->
+<div id="filter-sheet" class="sheet-overlay hidden" onclick="if(event.target===this) closeFilterSheet()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>필터</h3><button class="close-x" onclick="closeFilterSheet()">&times;</button></div>
+    <div class="sheet-body">
+      <select id="f-gonggu" onchange="applyFilters()"><option value="">전체 공구</option></select>
+      <select id="f-dong" onchange="applyFilters()"><option value="">전체 동</option></select>
+      <select id="f-loc" onchange="applyFilters()"><option value="">전체 위치</option></select>
+      <select id="f-trade" onchange="onTradeFilterChange()"><option value="">전체 공종</option></select>
+      <select id="f-subtrade" onchange="applyFilters()"><option value="">전체 세부공종</option></select>
+      <select id="f-status" onchange="applyFilters()">
+        <option value="">전체 상태</option>
+        <option value="신규">신규</option>
+        <option value="조치중">조치중</option>
+        <option value="완료">완료</option>
+      </select>
+      <select id="f-vendor" onchange="applyFilters()"><option value="">전체 업체명</option></select>
+      <button class="btn btn-ghost" onclick="resetFilters()">필터 초기화</button>
+      <button class="btn btn-primary" onclick="closeFilterSheet()">적용하고 닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 사용방법 바텀시트 -->
+<div id="help-sheet" class="sheet-overlay hidden" onclick="if(event.target===this) closeHelpSheet()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>❓ 사용방법 (모바일 2호)</h3><button class="close-x" onclick="closeHelpSheet()">&times;</button></div>
+    <div class="sheet-body">
+      <ol>
+        <li><strong>등록</strong> — 오른쪽 아래 ＋ 버튼. 사진부터 찍고 나머지 항목은 나중에 채워도 됩니다.</li>
+        <li><strong>즉시 저장</strong> — 저장을 누르면 화면엔 바로 반영되고, 실제 서버 저장은 뒤에서 자동으로 진행됩니다.</li>
+        <li><strong>동기화 상태</strong> — 카드에 "저장 대기중/동기화중/실패" 표시가 뜨면 아직 서버에 완전히 반영되지 않은 것입니다. "실패"는 탭하면 다시 시도합니다.</li>
+        <li><strong>오프라인</strong> — 인터넷이 끊겨도 등록/수정은 계속 가능하고, 연결되면 자동으로 밀린 저장이 진행됩니다. 화면을 새로고침해도 대기 중인 저장 내용은 유지됩니다.</li>
+        <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다.</li>
+        <li><strong>1호와의 차이</strong> — 이 화면은 모바일 터치 전용 카드 화면입니다. PC용 표 화면(다현장·엑셀 내보내기 등)은 기존 1호를 그대로 이용하세요.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- 사진 확대보기 -->
+<div id="img-modal" class="sheet-overlay hidden" onclick="if(event.target===this) closeImgModal()">
+  <div class="sheet">
+    <div class="sheet-header"><h3 id="img-modal-title">사진</h3><button class="close-x" onclick="closeImgModal()">&times;</button></div>
+    <img id="img-modal-target" src="">
+  </div>
+</div>
+
+<!-- 등록/수정 풀시트 모달 -->
+<div id="punch-modal" class="sheet-overlay hidden">
+  <div class="sheet">
+    <div class="modal-topbar">
+      <h3 id="modal-title">➕ 펀치 신규 등록</h3>
+      <button class="close-x" onclick="closePunchModal()">&times;</button>
+    </div>
+    <div class="modal-scroll">
+      <div id="modal-sync-note"></div>
+
+      <!-- 사진 먼저 -->
+      <div class="photo-first-grid">
+        <div class="photo-slot-box" id="photo-box-before">
+          <div class="photo-slot-label">📷 시공 전</div>
+          <img class="photo-slot-preview" id="photo-preview-before" onclick="viewFullPhoto(pendingPhotoBefore || existingBeforeUrl, '시공 전 사진')">
+          <div class="photo-slot-empty" id="photo-empty-before">사진 없음</div>
+          <input type="file" id="file-before" class="file-input-hidden" accept="image/*" capture="environment" onchange="onPhotoFileChange(event,'before')">
+          <button type="button" class="btn photo-cap-btn" onclick="document.getElementById('file-before').click()">📸 촬영/선택</button>
+          <button type="button" class="btn photo-clear-btn" id="clear-before-btn" style="display:none;" onclick="clearPendingPhoto('before')">되돌리기</button>
+        </div>
+        <div class="photo-slot-box" id="photo-box-after">
+          <div class="photo-slot-label">📷 시공 후</div>
+          <img class="photo-slot-preview" id="photo-preview-after" onclick="viewFullPhoto(pendingPhotoAfter || existingAfterUrl, '시공 후 사진')">
+          <div class="photo-slot-empty" id="photo-empty-after">사진 없음</div>
+          <input type="file" id="file-after" class="file-input-hidden" accept="image/*" capture="environment" onchange="onPhotoFileChange(event,'after')">
+          <button type="button" class="btn photo-cap-btn" style="background:#166534;" onclick="document.getElementById('file-after').click()">📸 촬영/선택</button>
+          <button type="button" class="btn photo-clear-btn" id="clear-after-btn" style="display:none;" onclick="clearPendingPhoto('after')">되돌리기</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>공구</label>
+        <select id="fi-gonggu">
+          <option value="">미정 (나중에 입력)</option>
+          <option value="1공구">1공구</option><option value="2공구">2공구</option>
+          <option value="3공구">3공구</option><option value="4공구">4공구</option>
+          <option value="공동구구역">공동구구역</option><option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>동</label>
+        <select id="fi-dong"><option value="">미정 (나중에 입력)</option></select>
+      </div>
+      <div class="field-group">
+        <label>호수 / 세부위치</label>
+        <input type="text" id="fi-ho" inputmode="text" placeholder="예: 101 또는 지하1층 기계실">
+      </div>
+      <div class="field-group">
+        <label>위치 / 세부장소</label>
+        <select id="fi-loc">
+          <option value="">미정 (나중에 입력)</option>
+          <option value="거실">거실</option><option value="안방">안방</option>
+          <option value="침실1">침실1</option><option value="침실2">침실2</option>
+          <option value="주방">주방</option><option value="욕실1">욕실1</option>
+          <option value="욕실2">욕실2</option><option value="발코니">발코니</option>
+          <option value="현관">현관</option><option value="복도">복도</option>
+          <option value="공동구구역">공동구구역</option><option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>공종</label>
+        <select id="fi-trade" onchange="onFormTradeChange()">
+          <option value="">미정 (나중에 입력)</option>
+          <option value="건축">건축</option><option value="기계">기계</option>
+          <option value="전기">전기</option><option value="소방">소방</option>
+          <option value="토목">토목</option><option value="조경">조경</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>세부공종</label>
+        <select id="fi-subtrade"><option value="기타">기타</option></select>
+      </div>
+      <div class="field-group">
+        <label>하자 유형</label>
+        <select id="fi-type">
+          <option value="파손">파손</option><option value="미시공">미시공</option>
+          <option value="오시공">오시공</option><option value="오염/흠집">오염/흠집</option>
+          <option value="기능불량">기능불량</option><option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>담당 업체명</label>
+        <input type="text" id="fi-vendor" list="vendor-datalist" placeholder="목록에 없으면 새로 입력 가능">
+        <datalist id="vendor-datalist"></datalist>
+      </div>
+      <div class="field-group">
+        <label>상태</label>
+        <select id="fi-status">
+          <option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>결함 상세 내용</label>
+        <textarea id="fi-content" placeholder="나중에 채워도 됩니다"></textarea>
+      </div>
+    </div>
+    <div class="modal-bottombar">
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveFromModal()">💾 저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// 설정 — Code.gs는 그대로 재사용(같은 스프레드시트/같은 액션). 이 파일은
+// GAS HtmlService가 아니라 순수 정적 파일이라 google.script.run을 쓸 수
+// 없고, 모든 통신은 HTTP로만 가능하다.
+// ══════════════════════════════════════════════════════════════════
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw491M3A108qj8AQst3yxvphswCM0Dq4_9ghnlFJJoXyyS1ecRrLHl7P9wuKSWg-bLGNw/exec';
+const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1MvrSUtQuaLPRKi3j7rg-jKMlI51ACQq8n5N-RBGj5Gs/edit';
+const DEFAULT_SITE = '양주역푸르지오';
+const STORAGE_KEY = 'punchlist_mobile_queue_v1';
+const DEFAULT_DONG_LIST = ['101동','102동','103동','104동','105동','106동','107동','108동','지하1층','지하2층','지하3층','상가동'];
+const TRADES = {
+  '건축': ['창호','조적','미장','방수','타일','수납가구','도배','마루','기타'],
+  '기계': ['위생','배관','덕트','보일러','기타'],
+  '전기': ['조명','배선','수전반','기타'],
+  '소방': ['스프링클러','감지기','기타'],
+  '토목': ['포장','배수로','기타'],
+  '조경': ['식재','시설물','기타']
+};
+
+// ── 상태 ──────────────────────────────────────────────────────────
+// var로 선언: 최상위 let/const는 window의 속성이 되지 않아 Node+jsdom 검증
+// 하네스가 window.queue 등으로 내부 상태를 들여다볼 수 없다 — 실제 동작은
+// var든 let이든 동일하고, 테스트 가능성을 위해 var를 쓴다.
+var serverList = [];      // 마지막으로 받은 서버 데이터(getPunchList)
+var queue = [];           // 대기중인 저장 작업(add/update). localStorage에 그대로 영속화
+var filteredList = [];
+var isProcessingQueue = false;
+var SERVER_CONFIG_DATA = null;
+
+var isAddMode = false;
+var currentEditId = null;
+var currentEditTaskQid = null;   // '실패' 상태 작업을 다시 여는 경우, 새 작업을 만들지 않고 기존 작업을 고쳐씀
+var pendingPhotoBefore = null;   // 이번 모달 세션에서 새로 찍은 사진(base64 dataURL), 저장 전까지는 서버에 안 올라감
+var pendingPhotoAfter = null;
+var existingBeforeUrl = '';
+var existingAfterUrl = '';
+
+// 테스트 하네스(Node+jsdom)가 DOMContentLoaded 자동 초기화를 막고 목(mock)을
+// 먼저 심은 뒤 initApp()을 수동 호출할 수 있게 하는 최소한의 훅.
+// 실제 브라우저 사용에는 전혀 영향 없음(플래그가 안 켜져 있으면 평소처럼 자동 초기화).
+window.__DISABLE_AUTO_INIT__ = window.__DISABLE_AUTO_INIT__ || false;
+
+// ── 유틸 ──────────────────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function uid() { return 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+function nowKST() {
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function toast(msg, ms = 3500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.style.display = 'none'; }, ms);
+}
+function busy(show, msg) {
+  const el = document.getElementById('loading');
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+  el.classList.toggle('hidden', !show);
+}
+
+// ── 서버 통신 ─────────────────────────────────────────────────────
+// getPunchList/getDropdownConfig/addPunch/updatePunch: JSONP(GET, <script> 태그)로 호출.
+// handleApiRequest가 callback 파라미터를 지원해서 CORS 없이 외부 정적 페이지에서도 호출 가능.
+// uploadPhoto만 예외: 압축해도 수백KB인 base64 사진을 GET 쿼리스트링에 실으면 URL 길이
+// 한도를 넘길 위험이 커서(구글 프론트엔드 서버가 보통 URL을 8KB 안팎으로 제한),
+// 그 액션만 fetch POST(text/plain body, 프리플라이트 없이 보내는 "simple request")로
+// 대체한다. Code.gs의 doPost()/handleApiRequest()는 이미 postData.contents를 JSON으로
+// 파싱하도록 되어 있어 서버 코드 변경 없이 그대로 받아진다. (이 부분은 실기기 검증 전이라
+// 100% 확정은 아님 — 최종 보고에 명시)
+function callJsonp(action, params) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'cb_' + Math.random().toString(36).substring(2);
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('통신 시간 초과 (JSONP)')); }, 15000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script && script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = function(response) {
+      cleanup();
+      if (response && response.ok) resolve(response.data);
+      else reject(new Error(response ? response.error : '알 수 없는 응답'));
+    };
+    const paramStr = encodeURIComponent(JSON.stringify(params || {}));
+    script.src = `${WEB_APP_URL}?action=${encodeURIComponent(action)}&params=${paramStr}&callback=${callbackName}&_ts=${Date.now()}`;
+    script.onerror = function() { cleanup(); reject(new Error('JSONP 스크립트 로드 실패')); };
+    document.body.appendChild(script);
+  });
+}
+
+async function callPost(action, params) {
+  const res = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action, params: params || {} }) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json || json.ok === false) throw new Error((json && json.error) || '알 수 없는 서버 오류');
+  return json.data;
+}
+
+function gasCall(action, params) {
+  if (action === 'uploadPhoto') return callPost(action, params);
+  return callJsonp(action, params);
+}
+
+// ── 사진 압축 (index.html compressImageForUpload 그대로 재사용) ──────
+async function compressImageForUpload(file, maxDim = 2200, quality = 0.92) {
+  try {
+    let bitmap;
+    if (window.createImageBitmap) {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } else {
+      bitmap = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+    const srcW = bitmap.width, srcH = bitmap.height;
+    const scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+    const w = Math.max(1, Math.round(srcW * scale));
+    const h = Math.max(1, Math.round(srcH * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    return blob || null;
+  } catch (e) {
+    console.warn('사진 압축 실패, 원본 그대로 업로드합니다:', e);
+    return null;
+  }
+}
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 낙관적 UI + 동기화 큐
+//   저장을 누르면: ① 화면에 즉시 반영(로컬) → ② 큐에 작업 등록 → ③ 백그라운드로
+//   순차 처리 → ④ 성공하면 조용히 확정, 실패하면 카드에 "실패" 배지를 남겨서
+//   눈에 보이게 하고 자동 재시도(최대 3회) 후에도 실패하면 수동 재시도 대기.
+//   큐는 매 변경마다 localStorage에 저장해서 새로고침해도 대기 작업이 사라지지 않는다.
+// ══════════════════════════════════════════════════════════════════
+function persistQueue() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(queue)); }
+  catch (e) { console.warn('큐 저장 실패(localStorage 사용 불가 또는 용량초과):', e); }
+  updateSyncIndicator();
+}
+function restoreQueue() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      queue = JSON.parse(raw) || [];
+      // 새로고침 직전 'syncing' 중이던 작업은 실제로는 중단된 것 — 재시작 시 다시 대기열로
+      queue.forEach(t => { if (t.status === 'syncing') t.status = 'pending'; });
+    }
+  } catch (e) { console.warn('큐 복원 실패:', e); queue = []; }
+}
+
+function findQueueTaskForLocalId(id) {
+  return queue.find(t => String(t.localId) === String(id));
+}
+function removeTaskFromQueue(qid) {
+  queue = queue.filter(t => t.qid !== qid);
+}
+
+function enqueueAdd(fields, photos) {
+  const task = {
+    qid: uid(), kind: 'add', localId: uid(),
+    fields, photos: photos || { before:null, after:null },
+    uploadedUrls: { before:null, after:null },
+    status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
+  };
+  queue.push(task);
+  persistQueue();
+  return task;
+}
+function enqueueUpdate(id, fields, photos) {
+  const task = {
+    qid: uid(), kind: 'update', localId: String(id),
+    fields, photos: photos || { before:null, after:null },
+    uploadedUrls: { before:null, after:null },
+    status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
+  };
+  queue.push(task);
+  persistQueue();
+  return task;
+}
+
+async function executeTask(task) {
+  // 사진이 있으면 먼저 업로드(재시도 시 이미 업로드된 것은 건너뜀 — uploadedUrls에 남아있음)
+  for (const type of ['before','after']) {
+    if (task.photos[type] && !task.uploadedUrls[type]) {
+      const res = await gasCall('uploadPhoto', {
+        base64Data: task.photos[type],
+        punchId: task.kind === 'add' ? 'New' : task.localId,
+        photoType: type
+      });
+      if (!res || res.ok === false) throw new Error((res && res.error) || '사진 업로드 실패');
+      task.uploadedUrls[type] = res.url;
+      persistQueue();
+    }
+  }
+
+  const data = { ...task.fields };
+  if (task.uploadedUrls.before) { data['시공전사진URL'] = task.uploadedUrls.before; data['사진URL'] = task.uploadedUrls.before; }
+  if (task.uploadedUrls.after) { data['시공후사진URL'] = task.uploadedUrls.after; }
+
+  if (task.kind === 'add') {
+    const res = await gasCall('addPunch', data);
+    if (!res || !res.id) throw new Error('등록 실패: 서버 응답에 ID가 없습니다.');
+    const item = { ...data, 'ID': res.id, '등록일': nowKST(), '상태': data['상태'] || '신규' };
+    serverList.push(item);
+  } else {
+    await gasCall('updatePunch', { id: task.localId, data });
+    const idx = serverList.findIndex(i => String(i['ID']) === String(task.localId));
+    if (idx !== -1) serverList[idx] = { ...serverList[idx], ...data };
+    else serverList.push({ ...data, 'ID': task.localId });
+  }
+}
+
+async function runQueue() {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+  try {
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      const snapshot = queue.slice();
+      for (const task of snapshot) {
+        if (task.status !== 'pending') continue;
+        task.status = 'syncing';
+        applyFilters();
+        updateSyncIndicator();
+        try {
+          await executeTask(task);
+          removeTaskFromQueue(task.qid);
+        } catch (err) {
+          task.attempts = (task.attempts || 0) + 1;
+          task.lastError = (err && err.message) ? err.message : String(err);
+          task.status = 'failed';
+          console.warn('큐 작업 실패:', task, err);
+          if (task.attempts < 3) {
+            const delay = [3000, 8000, 20000][task.attempts - 1] || 20000;
+            setTimeout(() => {
+              const t = queue.find(x => x.qid === task.qid);
+              if (t && t.status === 'failed') { t.status = 'pending'; persistQueue(); runQueue(); }
+            }, delay);
+          }
+        }
+        persistQueue();
+        progressed = true;
+      }
+    }
+  } finally {
+    isProcessingQueue = false;
+    applyFilters();
+    updateSyncIndicator();
+  }
+}
+
+function retryTask(qid) {
+  const t = queue.find(x => x.qid === qid);
+  if (!t) return;
+  t.status = 'pending'; t.attempts = 0; t.lastError = '';
+  persistQueue(); applyFilters(); runQueue();
+}
+function retryAllFailed() {
+  let any = false;
+  queue.forEach(t => { if (t.status === 'failed') { t.status = 'pending'; t.attempts = 0; t.lastError = ''; any = true; } });
+  if (!any) return;
+  persistQueue(); applyFilters(); runQueue();
+}
+function onSyncChipTap() {
+  const failed = queue.filter(t => t.status === 'failed').length;
+  if (failed > 0) { retryAllFailed(); return; }
+  loadList(true);
+}
+
+function updateSyncIndicator() {
+  const pending = queue.filter(t => t.status === 'pending' || t.status === 'syncing').length;
+  const failed = queue.filter(t => t.status === 'failed').length;
+  const el = document.getElementById('sync-indicator');
+  const banner = document.getElementById('fail-banner');
+  if (!el) return;
+  if (failed > 0) {
+    el.className = 'filter-trigger-btn has-active';
+    el.textContent = `⚠️ 동기화 실패 ${failed}건 · 탭하여 재시도`;
+    banner.style.display = 'flex';
+    document.getElementById('fail-banner-text').textContent = `⚠️ 동기화 실패 ${failed}건`;
+  } else if (pending > 0) {
+    el.className = 'filter-trigger-btn';
+    el.textContent = `🔄 동기화 중 ${pending}건`;
+    banner.style.display = 'none';
+  } else {
+    el.className = 'filter-trigger-btn';
+    el.textContent = `✅ 모두 동기화됨`;
+    banner.style.display = 'none';
+  }
+}
+
+// ── 서버 데이터 + 큐를 합쳐서 화면에 그릴 목록 만들기 ──────────────
+function getRenderList() {
+  const byId = new Map();
+  serverList.forEach(it => byId.set(String(it['ID']), { ...it, _sync: 'synced', _syncError: '', _qid: null }));
+
+  queue.forEach(task => {
+    if (task.kind !== 'update') return;
+    const base = byId.get(String(task.localId)) || { 'ID': task.localId };
+    const merged = { ...base, ...task.fields };
+    if (task.photos.before) merged['시공전사진URL'] = task.uploadedUrls.before || task.photos.before;
+    if (task.photos.after) merged['시공후사진URL'] = task.uploadedUrls.after || task.photos.after;
+    merged._sync = task.status; merged._syncError = task.lastError; merged._qid = task.qid;
+    byId.set(String(task.localId), merged);
+  });
+
+  const pendingNew = [];
+  queue.forEach(task => {
+    if (task.kind !== 'add') return;
+    const merged = { ...task.fields, 'ID': task.localId, _tempNew: true };
+    if (task.photos.before) merged['시공전사진URL'] = task.uploadedUrls.before || task.photos.before;
+    if (task.photos.after) merged['시공후사진URL'] = task.uploadedUrls.after || task.photos.after;
+    merged._sync = task.status; merged._syncError = task.lastError; merged._qid = task.qid;
+    pendingNew.push(merged);
+  });
+
+  const serverArr = Array.from(byId.values()).reverse(); // 최근 등록이 위로 오게
+  return [...pendingNew.reverse(), ...serverArr];
+}
+
+// ── 목록 로딩 / 설정 로딩 ─────────────────────────────────────────
+async function loadList(showBusy) {
+  if (showBusy) busy(true, '⏳ 펀치 데이터 불러오는 중...');
+  try {
+    const res = await gasCall('getPunchList', {});
+    if (Array.isArray(res)) { serverList = res; }
+  } catch (e) {
+    if (!serverList.length) toast('⚠️ 서버 연결 실패 — 저장된 항목만 표시합니다 (' + (e.message||e) + ')');
+  }
+  updateFiltersOptions();
+  applyFilters();
+  busy(false);
+}
+async function loadConfig() {
+  try {
+    const res = await gasCall('getDropdownConfig', {});
+    if (res) { SERVER_CONFIG_DATA = res; populateDongOptions(); populateVendorDatalist(); }
+  } catch (e) { console.warn('설정 로딩 실패, 기본값 사용:', e); }
+}
+function populateDongOptions() {
+  const list = (SERVER_CONFIG_DATA && SERVER_CONFIG_DATA.dongList && SERVER_CONFIG_DATA.dongList.length) ? SERVER_CONFIG_DATA.dongList : DEFAULT_DONG_LIST;
+  ['fi-dong'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">미정 (나중에 입력)</option>' + list.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+    sel.value = cur;
+  });
+}
+function populateVendorDatalist(tradeFilter) {
+  const list = (SERVER_CONFIG_DATA && SERVER_CONFIG_DATA.vendorList) || [];
+  const map = (SERVER_CONFIG_DATA && SERVER_CONFIG_DATA.vendorTradeMap) || {};
+  const dl = document.getElementById('vendor-datalist');
+  if (!dl) return;
+  const filtered = tradeFilter ? list.filter(name => (map[name]||[]).includes(tradeFilter)) : list;
+  dl.innerHTML = filtered.map(n => `<option value="${esc(n)}">`).join('');
+}
+
+// ── 필터 ──────────────────────────────────────────────────────────
+function updateFiltersOptions() {
+  const list = getRenderList();
+  updateSelectOptions('f-gonggu', list.map(i => i['공구']), '전체 공구');
+  updateSelectOptions('f-dong', list.map(i => i['동']), '전체 동');
+  updateSelectOptions('f-loc', list.map(i => i['위치']), '전체 위치');
+  updateSelectOptions('f-trade', list.map(i => i['공종']), '전체 공종');
+  updateSelectOptions('f-subtrade', list.map(i => i['세부공종']), '전체 세부공종');
+  updateSelectOptions('f-vendor', list.map(i => i['업체명']), '전체 업체명');
+}
+function updateSelectOptions(id, values, allLabel) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const cur = sel.value;
+  const uniq = [...new Set(values.filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">${allLabel}</option>` + uniq.map(v => `<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(v)}</option>`).join('');
+  sel.value = cur;
+}
+function onTradeFilterChange() { applyFilters(); }
+function resetFilters() {
+  ['f-gonggu','f-dong','f-loc','f-trade','f-subtrade','f-status','f-vendor'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  applyFilters();
+}
+function filterByStat(status) {
+  const sel = document.getElementById('f-status');
+  sel.value = (sel.value === status) ? '' : status;
+  applyFilters();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function applyFilters() {
+  const list = getRenderList();
+  const gonggu = v('f-gonggu'), dong = v('f-dong'), loc = v('f-loc'), trade = v('f-trade'),
+        subtrade = v('f-subtrade'), status = v('f-status'), vendor = v('f-vendor');
+
+  filteredList = list.filter(it => {
+    if (gonggu && String(it['공구']||'') !== gonggu) return false;
+    if (dong && String(it['동']||'') !== dong) return false;
+    if (loc && String(it['위치']||'') !== loc) return false;
+    if (trade && String(it['공종']||'') !== trade) return false;
+    if (subtrade && String(it['세부공종']||'') !== subtrade) return false;
+    if (status && String(it['상태']||'') !== status) return false;
+    if (vendor && String(it['업체명']||'') !== vendor) return false;
+    return true;
+  });
+
+  updateStats(list);
+  renderCards(filteredList);
+  updateSyncIndicator();
+
+  const filterBtn = document.getElementById('filter-trigger-btn');
+  const anyFilterActive = !!(gonggu||dong||loc||trade||subtrade||status||vendor);
+  if (filterBtn) filterBtn.classList.toggle('has-active', anyFilterActive);
+}
+function updateStats(list) {
+  document.getElementById('st-total').textContent = list.length;
+  document.getElementById('st-new').textContent  = list.filter(i => (i['상태']||'신규') === '신규').length;
+  document.getElementById('st-proc').textContent = list.filter(i => (i['상태']||'') === '조치중').length;
+  document.getElementById('st-done').textContent = list.filter(i => (i['상태']||'') === '완료').length;
+  const curStatus = v('f-status');
+  document.querySelectorAll('.stat-card').forEach(c => c.classList.toggle('active', c.dataset.status === curStatus));
+}
+
+// ── 카드 렌더링 ───────────────────────────────────────────────────
+function renderCards(items) {
+  const wrap = document.getElementById('card-list');
+  const empty = document.getElementById('empty');
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  wrap.innerHTML = items.map(cardHtml).join('');
+}
+function cardHtml(it) {
+  const id = it['ID'];
+  const idLabel = it._tempNew ? '신규' : ('#' + esc(id));
+  const dongHo = esc(it['동호수'] || ((it['동']||'') + ' ' + (it['호수']||'')).trim() || '미정');
+  const loc = esc(it['위치'] || '미정');
+  const tradeStr = esc((it['공종']||'미정') + (it['세부공종'] ? ' · ' + it['세부공종'] : ''));
+  const vendor = it['업체명'] || '';
+  const content = esc(it['내용'] || '');
+  const status = it['상태'] || '신규';
+  let stClass = 'badge-new'; if (status === '조치중') stClass = 'badge-proc'; if (status === '완료') stClass = 'badge-done';
+
+  const photoBefore = it['시공전사진URL'] || '';
+  const photoAfter  = it['시공후사진URL'] || '';
+
+  let syncChip = '';
+  if (it._sync === 'pending') syncChip = `<span class="sync-chip sync-chip-pending">⏳ 저장 대기중</span>`;
+  else if (it._sync === 'syncing') syncChip = `<span class="sync-chip sync-chip-pending">🔄 동기화중</span>`;
+  else if (it._sync === 'failed') syncChip = `<span class="sync-chip sync-chip-fail" onclick="event.stopPropagation(); retryTask('${it._qid}')">⚠️ 실패 · 재시도</span>`;
+
+  return `
+    <div class="p-card" onclick="openEditModal('${esc(id)}')">
+      <div class="p-card-top">
+        <div class="p-card-id">${idLabel} <span class="badge ${stClass}">${status}</span></div>
+        ${syncChip}
+      </div>
+      <div class="p-card-loc">${dongHo} <span class="p-card-sub">· ${loc}</span></div>
+      <div class="p-card-meta">${tradeStr}${vendor ? ' · ' + esc(vendor) : ''}</div>
+      ${content ? `<div class="p-card-content">${content}</div>` : ''}
+      <div class="p-card-photos">
+        ${photoSlotHtml('시공 전', photoBefore, dongHo)}
+        ${photoSlotHtml('시공 후', photoAfter, dongHo)}
+      </div>
+    </div>
+  `;
+}
+function photoSlotHtml(label, url, dongHo) {
+  if (!url) return `<div class="p-photo-slot p-photo-empty">${label}<br>사진 없음</div>`;
+  return `<div class="p-photo-slot"><img src="${esc(url)}" loading="lazy" onclick="event.stopPropagation(); viewFullPhoto('${esc(url)}','${label} - ${dongHo}')"><span class="p-photo-tag">${label}</span></div>`;
+}
+
+function viewFullPhoto(url, caption) {
+  if (!url) return;
+  document.getElementById('img-modal-title').textContent = caption || '사진';
+  document.getElementById('img-modal-target').src = url;
+  document.getElementById('img-modal').classList.remove('hidden');
+}
+function closeImgModal() { document.getElementById('img-modal').classList.add('hidden'); }
+
+// ── 바텀시트 열고닫기 ─────────────────────────────────────────────
+function openFilterSheet() { document.getElementById('filter-sheet').classList.remove('hidden'); }
+function closeFilterSheet() { document.getElementById('filter-sheet').classList.add('hidden'); }
+function openHelpSheet() { document.getElementById('help-sheet').classList.remove('hidden'); }
+function closeHelpSheet() { document.getElementById('help-sheet').classList.add('hidden'); }
+
+// ── 등록/수정 모달 ────────────────────────────────────────────────
+function resetPhotoFormState() {
+  pendingPhotoBefore = null; pendingPhotoAfter = null;
+  existingBeforeUrl = ''; existingAfterUrl = '';
+}
+function renderPhotoPreviews() {
+  renderOnePhotoPreview('before', pendingPhotoBefore, existingBeforeUrl);
+  renderOnePhotoPreview('after', pendingPhotoAfter, existingAfterUrl);
+}
+function renderOnePhotoPreview(type, pending, existing) {
+  const box = document.getElementById('photo-box-' + type);
+  const img = document.getElementById('photo-preview-' + type);
+  const emptyEl = document.getElementById('photo-empty-' + type);
+  const clearBtn = document.getElementById('clear-' + type + '-btn');
+  const src = pending || existing;
+  if (src) {
+    img.src = src; img.classList.add('show'); emptyEl.style.display = 'none';
+    box.classList.add('has-photo');
+  } else {
+    img.classList.remove('show'); img.src = ''; emptyEl.style.display = 'flex';
+    box.classList.remove('has-photo');
+  }
+  clearBtn.style.display = pending ? 'block' : 'none';
+}
+function clearPendingPhoto(type) {
+  if (type === 'before') pendingPhotoBefore = null; else pendingPhotoAfter = null;
+  renderPhotoPreviews();
+}
+async function onPhotoFileChange(e, type) {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  toast('📸 사진을 압축하는 중입니다...', 2000);
+  let uploadFile = file;
+  if (file.size > 300 * 1024) {
+    const compressed = await compressImageForUpload(file);
+    if (compressed && compressed.size < file.size) uploadFile = compressed;
+  }
+  const dataUrl = await fileToDataURL(uploadFile);
+  if (type === 'before') pendingPhotoBefore = dataUrl; else pendingPhotoAfter = dataUrl;
+  renderPhotoPreviews();
+}
+
+function onFormTradeChange() {
+  const tr = v('fi-trade');
+  const subSel = document.getElementById('fi-subtrade');
+  const subs = TRADES[tr] || ['기타'];
+  subSel.innerHTML = subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  populateVendorDatalist(tr);
+}
+
+function openAddModal() {
+  isAddMode = true; currentEditId = null; currentEditTaskQid = null;
+  resetPhotoFormState();
+  document.getElementById('modal-title').textContent = '➕ 펀치 신규 등록';
+  document.getElementById('modal-save-btn').textContent = '💾 신규 등록하기';
+  document.getElementById('modal-sync-note').innerHTML = '';
+  ['fi-gonggu','fi-dong','fi-ho','fi-loc','fi-trade','fi-vendor','fi-content'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('fi-type').value = '파손';
+  document.getElementById('fi-status').value = '신규';
+  onFormTradeChange();
+  renderPhotoPreviews();
+  document.getElementById('punch-modal').classList.remove('hidden');
+}
+
+function openEditModal(id) {
+  const existingTask = findQueueTaskForLocalId(id);
+  if (existingTask && (existingTask.status === 'pending' || existingTask.status === 'syncing')) {
+    toast('⏳ 이 항목은 지금 동기화 처리 중입니다. 완료 후 다시 시도해주세요.');
+    return;
+  }
+  const item = getRenderList().find(i => String(i['ID']) === String(id));
+  if (!item) return;
+
+  isAddMode = false; currentEditId = id;
+  currentEditTaskQid = (existingTask && existingTask.status === 'failed') ? existingTask.qid : null;
+
+  resetPhotoFormState();
+  existingBeforeUrl = item['시공전사진URL'] || '';
+  existingAfterUrl = item['시공후사진URL'] || '';
+
+  document.getElementById('modal-title').textContent = `✏️ 펀치 상세정보 (#${esc(id)})`;
+  document.getElementById('modal-save-btn').textContent = '💾 변경사항 저장';
+
+  const noteEl = document.getElementById('modal-sync-note');
+  if (item._sync === 'failed') {
+    noteEl.innerHTML = `<div class="card-sync-note fail">⚠️ 이전 저장이 실패했습니다: ${esc(item._syncError||'')}<br>내용을 확인하고 다시 저장하면 재시도됩니다.</div>`;
+  } else {
+    noteEl.innerHTML = '';
+  }
+
+  document.getElementById('fi-gonggu').value = item['공구'] || '';
+  document.getElementById('fi-dong').value = item['동'] || '';
+  document.getElementById('fi-ho').value = item['호수'] || '';
+  document.getElementById('fi-loc').value = item['위치'] || '';
+  document.getElementById('fi-trade').value = item['공종'] || '';
+  onFormTradeChange();
+  document.getElementById('fi-subtrade').value = item['세부공종'] || '';
+  document.getElementById('fi-type').value = item['유형'] || '파손';
+  document.getElementById('fi-vendor').value = item['업체명'] || '';
+  document.getElementById('fi-status').value = item['상태'] || '신규';
+  document.getElementById('fi-content').value = item['내용'] || '';
+
+  renderPhotoPreviews();
+  document.getElementById('punch-modal').classList.remove('hidden');
+}
+function closePunchModal() { document.getElementById('punch-modal').classList.add('hidden'); }
+
+function collectFormFields() {
+  const dong = v('fi-dong'), ho = v('fi-ho');
+  return {
+    '현장': DEFAULT_SITE,
+    '공구': v('fi-gonggu'),
+    '동': dong,
+    '호수': ho,
+    '동호수': (dong + ' ' + ho).trim(),
+    '위치': v('fi-loc'),
+    '공종': v('fi-trade'),
+    '세부공종': v('fi-subtrade'),
+    '유형': v('fi-type'),
+    '상태': v('fi-status') || '신규',
+    '업체명': v('fi-vendor'),
+    '내용': v('fi-content')
+  };
+}
+
+function saveFromModal() {
+  const fields = collectFormFields();
+  const photos = { before: pendingPhotoBefore, after: pendingPhotoAfter };
+
+  if (isAddMode) {
+    enqueueAdd(fields, photos);
+  } else if (currentEditTaskQid) {
+    // 실패했던 작업을 새로 만들지 않고 그 자리에서 고쳐씀 (중복 작업 방지)
+    const task = queue.find(t => t.qid === currentEditTaskQid);
+    if (task) {
+      task.fields = fields;
+      if (photos.before) { task.photos.before = photos.before; task.uploadedUrls.before = null; }
+      if (photos.after) { task.photos.after = photos.after; task.uploadedUrls.after = null; }
+      task.status = 'pending'; task.attempts = 0; task.lastError = '';
+    } else {
+      enqueueUpdate(currentEditId, fields, photos);
+    }
+  } else {
+    enqueueUpdate(currentEditId, fields, photos);
+  }
+
+  persistQueue();
+  closePunchModal();
+  applyFilters();
+  toast('💾 임시 저장됨 — 백그라운드에서 자동 동기화됩니다');
+  runQueue();
+}
+
+// ── 초기화 ────────────────────────────────────────────────────────
+function updateOfflineBanner() {
+  document.getElementById('offline-banner').style.display = navigator.onLine ? 'none' : 'flex';
+}
+
+function initApp() {
+  restoreQueue();
+  populateDongOptions();
+  onFormTradeChange();
+  applyFilters();
+  updateOfflineBanner();
+  loadConfig();
+  loadList(true);
+  runQueue();
+
+  window.addEventListener('online', () => { updateOfflineBanner(); runQueue(); loadList(false); });
+  window.addEventListener('offline', updateOfflineBanner);
+
+  // 15초 주기 자동 동기화 — 1호와 동일한 주기. 등록/수정 모달이 열려있으면 건너뜀(입력 중 화면 흔들림 방지)
+  setInterval(() => {
+    if (!document.getElementById('punch-modal').classList.contains('hidden')) return;
+    loadList(false);
+  }, 15000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.__DISABLE_AUTO_INIT__) return;
+  initApp();
+});
+</script>
+</body>
+</html>
