@@ -36,12 +36,12 @@
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 14px;
     padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
   }
-  header h1 { font-size: 1.15rem; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 8px; line-height: 1.25; }
-  header h1 img { height: 34px; width: auto; border-radius: 6px; }
-  .header-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  header h1 { font-size: 1.15rem; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 8px; line-height: 1.25; min-width: 0; flex-shrink: 1; }
+  header h1 img { height: 34px; width: auto; border-radius: 6px; flex-shrink: 0; }
+  .header-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; flex-shrink: 0; }
   .icon-btn {
     background: #0f172a; border: 1.5px solid var(--card-border); color: var(--text);
-    width: 40px; height: 40px; border-radius: 10px; font-size: 1.15rem;
+    width: 34px; height: 34px; border-radius: 9px; font-size: 1rem;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
   }
   .icon-btn:active { background: #26334d; }
@@ -185,7 +185,7 @@
 <header>
   <h1>
     <img src="https://drive.google.com/thumbnail?id=19X-FeteoZBILoDPpJ1FnuQgd4FNVtV6q&sz=w80" alt="태야">
-    스마트 펀치리스트<br>모바일(2호)
+    펀치리스트 2호
   </h1>
   <div class="header-btns">
     <button class="icon-btn" onclick="loadList(true)" title="새로고침">🔄</button>
