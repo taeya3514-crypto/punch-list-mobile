@@ -259,8 +259,10 @@
         <li><strong>즉시 저장</strong> — 저장을 누르면 화면엔 바로 반영되고, 실제 서버 저장은 뒤에서 자동으로 진행됩니다.</li>
         <li><strong>동기화 상태</strong> — 카드에 "저장 대기중/동기화중/실패" 표시가 뜨면 아직 서버에 완전히 반영되지 않은 것입니다. "실패"는 탭하면 다시 시도합니다.</li>
         <li><strong>오프라인</strong> — 인터넷이 끊겨도 등록/수정은 계속 가능하고, 연결되면 자동으로 밀린 저장이 진행됩니다. 화면을 새로고침해도 대기 중인 저장 내용은 유지됩니다.</li>
-        <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다.</li>
-        <li><strong>1호와의 차이</strong> — 이 화면은 모바일 터치 전용 카드 화면입니다. PC용 표 화면(다현장·엑셀 내보내기 등)은 기존 1호를 그대로 이용하세요.</li>
+        <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다. 전/후 사진이 둘 다 채워지면 상태가 자동으로 "완료"로 제안됩니다(강제 아님, 저장 전 언제든 직접 바꿀 수 있음).</li>
+        <li><strong>삭제</strong> — 상세보기 모달 하단 "🗑️ 삭제" 버튼. 실제로 지워지는 게 아니라 목록에서만 안 보이게 처리되어, 필요하면 나중에 복구할 수 있습니다.</li>
+        <li><strong>출력</strong> — 헤더의 📊 버튼은 사진 URL 포함 엑셀(CSV) 내보내기, 🖨️ 버튼은 인쇄용 표 화면을 새 창으로 열어 바로 인쇄합니다. 노트북에서 접속해도 등록·수정·삭제·출력 전부 동일하게 됩니다.</li>
+        <li><strong>1호와의 차이</strong> — 이 화면은 모바일 터치 전용 카드 화면입니다(다현장 관리 등 일부 고급 기능은 기존 1호에만 있음).</li>
       </ol>
     </div>
   </div>
@@ -927,6 +929,12 @@ async function onPhotoFileChange(e, type) {
   const dataUrl = await fileToDataURL(uploadFile);
   if (type === 'before') pendingPhotoBefore = dataUrl; else pendingPhotoAfter = dataUrl;
   renderPhotoPreviews();
+
+  // 시공전+후 사진이 둘 다 갖춰지면 "완료"를 기본값으로 제안(강제 아님, 저장 전 언제든 변경 가능) — 1호와 동일한 동작
+  if ((pendingPhotoBefore || existingBeforeUrl) && (pendingPhotoAfter || existingAfterUrl)) {
+    const statusSel = document.getElementById('fi-status');
+    if (statusSel) statusSel.value = '완료';
+  }
 }
 
 function onFormTradeChange() {
