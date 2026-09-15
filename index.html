@@ -189,6 +189,8 @@
   </h1>
   <div class="header-btns">
     <button class="icon-btn" onclick="loadList(true)" title="새로고침">🔄</button>
+    <button class="icon-btn" onclick="exportExcel()" title="엑셀(CSV) 내보내기">📊</button>
+    <button class="icon-btn" onclick="printReport()" title="인쇄">🖨️</button>
     <button class="icon-btn" onclick="openHelpSheet()" title="사용방법">❓</button>
   </div>
 </header>
@@ -1103,6 +1105,86 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.__DISABLE_AUTO_INIT__) return;
   initApp();
 });
+
+// ── 출력(엑셀/인쇄) — 1호(index.html)의 exportExcel() 로직 그대로 재사용 ──
+function exportExcel() {
+  if (!filteredList || filteredList.length === 0) {
+    toast('내보낼 데이터가 없습니다.');
+    return;
+  }
+  let csv = '﻿ID,현장,공구,동,호수,동호수,위치,공종,세부공종,유형,결함내용,상태,업체명,등록일,시공전사진URL,시공후사진URL,전체사진URL\n';
+  filteredList.forEach(i => {
+    const id       = i['ID'] || '';
+    const site     = i['현장'] || '';
+    const gonggu   = i['공구'] || '';
+    const dong     = i['동'] || '';
+    const ho       = i['호수'] || '';
+    const dongHo   = i['동호수'] || '';
+    const loc      = i['위치'] || '';
+    const trade    = i['공종'] || '';
+    const subtrade = i['세부공종'] || '';
+    const type     = i['유형'] || '';
+    const content  = (i['내용'] || i['결함내용'] || i['지적사항'] || '').replace(/"/g, '""');
+    const status   = i['상태'] || '';
+    const vendor   = i['업체명'] || '';
+    const date     = i['등록일'] || '';
+    const pBefore  = i['시공전사진URL'] || i['시공전 사진URL'] || i['사진URL'] || '';
+    const pAfter   = i['시공후사진URL'] || i['시공후 사진URL'] || '';
+    const pAll     = [pBefore, pAfter].filter(Boolean).join(' | ');
+
+    csv += `"${id}","${site}","${gonggu}","${dong}","${ho}","${dongHo}","${loc}","${trade}","${subtrade}","${type}","${content}","${status}","${vendor}","${date}","${pBefore}","${pAfter}","${pAll}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `스마트펀치리스트_2호_${new Date().toISOString().substring(0,10)}.csv`;
+  a.click();
+  toast('사진 URL이 포함된 엑셀(CSV) 내보내기가 완료되었습니다!');
+}
+
+// 카드형 다크UI는 그대로 인쇄하면 가독성이 떨어지므로, 새 창에 밝은 배경의
+// 표 형태 인쇄용 문서를 만들어 그쪽에서 window.print()를 호출한다(1호의
+// @media print 표 레이아웃과 같은 목적, 구현 방식만 다름 — 2호는 카드 렌더러뿐이라
+// 별도 표 HTML을 조립하는 쪽이 더 간단하고 안전함).
+function printReport() {
+  if (!filteredList || filteredList.length === 0) {
+    toast('인쇄할 데이터가 없습니다.');
+    return;
+  }
+  const rows = filteredList.map(i => `
+    <tr>
+      <td>${esc(i['ID']||'')}</td>
+      <td>${esc(i['동']||'')} ${esc(i['호수']||'')}</td>
+      <td>${esc(i['위치']||'')}</td>
+      <td>${esc(i['공종']||'')}</td>
+      <td>${esc(i['유형']||'')}</td>
+      <td>${esc(i['내용']||i['결함내용']||i['지적사항']||'')}</td>
+      <td>${esc(i['상태']||'')}</td>
+      <td>${esc(i['업체명']||'')}</td>
+      <td>${esc(i['등록일']||'')}</td>
+    </tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>스마트 펀치리스트 인쇄용</title>
+<style>
+  body{font-family:'Malgun Gothic',sans-serif;padding:16px;color:#111;}
+  h1{font-size:1.2rem;margin-bottom:4px;}
+  .meta{color:#555;font-size:0.82rem;margin-bottom:12px;}
+  table{width:100%;border-collapse:collapse;font-size:0.76rem;}
+  th,td{border:1px solid #999;padding:5px 6px;text-align:left;vertical-align:top;word-break:break-all;}
+  th{background:#eee;}
+  @media print { @page { size: A4 landscape; margin: 10mm; } }
+</style></head><body>
+<h1>스마트 펀치리스트 (모바일 2호)</h1>
+<div class="meta">출력일: ${esc(new Date().toLocaleString('ko-KR'))} · 총 ${filteredList.length}건</div>
+<table><thead><tr><th>ID</th><th>동호수</th><th>위치</th><th>공종</th><th>유형</th><th>내용</th><th>상태</th><th>업체명</th><th>등록일</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<script>window.onload = () => window.print();<\/script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast('팝업이 차단되었습니다 — 브라우저 팝업 허용 후 다시 시도해주세요.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
 </script>
 </body>
 </html>
