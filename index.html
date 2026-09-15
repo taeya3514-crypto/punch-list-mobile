@@ -917,7 +917,6 @@ async function onPhotoFileChange(e, type) {
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
-  toast('📸 사진을 압축하는 중입니다...', 2000);
   let uploadFile = file;
   if (file.size > 300 * 1024) {
     const compressed = await compressImageForUpload(file);
