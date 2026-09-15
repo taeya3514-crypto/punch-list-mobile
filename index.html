@@ -369,6 +369,7 @@
     </div>
     <div class="modal-bottombar">
       <button class="btn btn-primary" id="modal-save-btn" onclick="saveFromModal()">💾 저장</button>
+      <button class="btn" id="modal-delete-btn" onclick="deleteFromModal()" style="display:none; margin-top:8px; background:transparent; border:1.5px solid var(--danger); color:var(--danger);">🗑️ 이 항목 삭제</button>
     </div>
   </div>
 </div>
@@ -939,6 +940,7 @@ function openAddModal() {
   resetPhotoFormState();
   document.getElementById('modal-title').textContent = '➕ 펀치 신규 등록';
   document.getElementById('modal-save-btn').textContent = '💾 신규 등록하기';
+  document.getElementById('modal-delete-btn').style.display = 'none';
   document.getElementById('modal-sync-note').innerHTML = '';
   ['fi-gonggu','fi-dong','fi-ho','fi-loc','fi-trade','fi-vendor','fi-content'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('fi-type').value = '파손';
@@ -966,6 +968,7 @@ function openEditModal(id) {
 
   document.getElementById('modal-title').textContent = `✏️ 펀치 상세정보 (#${esc(id)})`;
   document.getElementById('modal-save-btn').textContent = '💾 변경사항 저장';
+  document.getElementById('modal-delete-btn').style.display = 'block';
 
   const noteEl = document.getElementById('modal-sync-note');
   if (item._sync === 'failed') {
@@ -1035,6 +1038,40 @@ function saveFromModal() {
   applyFilters();
   toast('💾 임시 저장됨 — 백그라운드에서 자동 동기화됩니다');
   runQueue();
+}
+
+async function deleteFromModal() {
+  if (!currentEditId) return;
+  const id = currentEditId;
+  if (!confirm('이 항목을 삭제하시겠습니까?\n(삭제해도 시트에서는 "삭제됨" 상태로만 표시되어, 필요하면 나중에 되살릴 수 있습니다)')) return;
+
+  const isTemp = String(id).startsWith('tmp_');
+  closePunchModal();
+
+  if (isTemp) {
+    // 아직 서버에 한 번도 저장된 적 없는 항목 — 큐에서만 취소하면 됨
+    const task = findQueueTaskForLocalId(id);
+    if (task) removeTaskFromQueue(task.qid);
+    persistQueue();
+    applyFilters();
+    toast('🗑️ 삭제했습니다 (서버 미등록 항목)');
+    return;
+  }
+
+  // 이미 서버에 있던 항목 — 낙관적으로 화면에서 먼저 지우고, 뒤에서 서버에도 삭제 요청
+  serverList = serverList.filter(i => String(i['ID']) !== String(id));
+  const pendingTask = findQueueTaskForLocalId(id);
+  if (pendingTask) { removeTaskFromQueue(pendingTask.qid); persistQueue(); }
+  applyFilters();
+  toast('🗑️ 삭제 처리 중...');
+  try {
+    await gasCall('deletePunch', { id: id });
+    toast('✅ 삭제 완료');
+  } catch (err) {
+    console.warn('deletePunch 실패:', err);
+    toast('❌ 삭제 실패 — 목록을 새로고침합니다. (' + (err && err.message ? err.message : err) + ')');
+    loadList(false);
+  }
 }
 
 // ── 초기화 ────────────────────────────────────────────────────────
