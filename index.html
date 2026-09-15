@@ -739,13 +739,26 @@ function getRenderList() {
 }
 
 // ── 목록 로딩 / 설정 로딩 ─────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 async function loadList(showBusy) {
   if (showBusy) busy(true, '⏳ 펀치 데이터 불러오는 중...');
-  try {
-    const res = await gasCall('getPunchList', {});
-    if (Array.isArray(res)) { serverList = res; }
-  } catch (e) {
-    if (!serverList.length) toast('⚠️ 서버 연결 실패 — 저장된 항목만 표시합니다 (' + (e.message||e) + ')');
+  // 모바일 네트워크(특히 현장)에서 JSONP 스크립트 로드가 간헐적으로 실패하는 사례가
+  // 있어(2026-09-15 실사용 리포트), 바로 포기하지 않고 짧은 대기 후 최대 2회 더 시도한다.
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await gasCall('getPunchList', {});
+      if (Array.isArray(res)) { serverList = res; }
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) await sleep(1500 * (attempt + 1));
+    }
+  }
+  if (lastErr && !serverList.length) {
+    toast('⚠️ 서버 연결 실패 — 저장된 항목만 표시합니다 (' + (lastErr.message || lastErr) + ')');
   }
   updateFiltersOptions();
   applyFilters();
