@@ -427,6 +427,18 @@ function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// esc()는 HTML 텍스트/속성용이라 작은따옴표(')는 안 건드린다 — onclick="...'${값}'..." 처럼
+// HTML 속성 안에 홑따옴표로 감싼 JS 문자열 인자로 값을 넣는 자리에서는 esc()만으로 부족하다
+// (호수/위치/업체명 등 자유입력 필드에 아포스트로피가 들어오면 그 자리에서 JS 문법이 깨짐).
+// 반드시 esc()가 처리 못하는 원본 값을 받아, 역슬래시·홑따옴표부터 이스케이프한 뒤 나머지는
+// esc()와 동일하게 처리한다.
+function escJsAttr(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
 function uid() { return 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function nowKST() {
@@ -463,7 +475,10 @@ function callJsonp(action, params) {
     const timeout = setTimeout(() => { cleanup(); reject(new Error('통신 시간 초과 (JSONP)')); }, 15000);
     function cleanup() {
       clearTimeout(timeout);
-      delete window[callbackName];
+      // 타임아웃/에러로 먼저 정리된 뒤에도 브라우저가 이미 내려받던 스크립트를 계속 실행해
+      // 뒤늦게 콜백을 부르는 경우가 있다(느린 응답). delete로 완전히 없애면 그 시점에
+      // "cb_xxx is not defined" 오류가 나므로, 조용히 무시하는 빈 함수로 남겨둔다.
+      window[callbackName] = function() {};
       if (script && script.parentNode) script.parentNode.removeChild(script);
     }
     window[callbackName] = function(response) {
@@ -838,7 +853,8 @@ function renderCards(items) {
 function cardHtml(it) {
   const id = it['ID'];
   const idLabel = it._tempNew ? '신규' : ('#' + esc(id));
-  const dongHo = esc(it['동호수'] || ((it['동']||'') + ' ' + (it['호수']||'')).trim() || '미정');
+  const dongHoRaw = it['동호수'] || ((it['동']||'') + ' ' + (it['호수']||'')).trim() || '미정';
+  const dongHo = esc(dongHoRaw);
   const loc = esc(it['위치'] || '미정');
   const tradeStr = esc((it['공종']||'미정') + (it['세부공종'] ? ' · ' + it['세부공종'] : ''));
   const vendor = it['업체명'] || '';
@@ -852,10 +868,10 @@ function cardHtml(it) {
   let syncChip = '';
   if (it._sync === 'pending') syncChip = `<span class="sync-chip sync-chip-pending">⏳ 저장 대기중</span>`;
   else if (it._sync === 'syncing') syncChip = `<span class="sync-chip sync-chip-pending">🔄 동기화중</span>`;
-  else if (it._sync === 'failed') syncChip = `<span class="sync-chip sync-chip-fail" onclick="event.stopPropagation(); retryTask('${it._qid}')">⚠️ 실패 · 재시도</span>`;
+  else if (it._sync === 'failed') syncChip = `<span class="sync-chip sync-chip-fail" onclick="event.stopPropagation(); retryTask('${escJsAttr(it._qid)}')">⚠️ 실패 · 재시도</span>`;
 
   return `
-    <div class="p-card" onclick="openEditModal('${esc(id)}')">
+    <div class="p-card" onclick="openEditModal('${escJsAttr(id)}')">
       <div class="p-card-top">
         <div class="p-card-id">${idLabel} <span class="badge ${stClass}">${status}</span></div>
         ${syncChip}
@@ -864,15 +880,15 @@ function cardHtml(it) {
       <div class="p-card-meta">${tradeStr}${vendor ? ' · ' + esc(vendor) : ''}</div>
       ${content ? `<div class="p-card-content">${content}</div>` : ''}
       <div class="p-card-photos">
-        ${photoSlotHtml('시공 전', photoBefore, dongHo)}
-        ${photoSlotHtml('시공 후', photoAfter, dongHo)}
+        ${photoSlotHtml('시공 전', photoBefore, dongHoRaw)}
+        ${photoSlotHtml('시공 후', photoAfter, dongHoRaw)}
       </div>
     </div>
   `;
 }
-function photoSlotHtml(label, url, dongHo) {
+function photoSlotHtml(label, url, dongHoRaw) {
   if (!url) return `<div class="p-photo-slot p-photo-empty">${label}<br>사진 없음</div>`;
-  return `<div class="p-photo-slot"><img src="${esc(url)}" loading="lazy" onclick="event.stopPropagation(); viewFullPhoto('${esc(url)}','${label} - ${dongHo}')"><span class="p-photo-tag">${label}</span></div>`;
+  return `<div class="p-photo-slot"><img src="${esc(url)}" loading="lazy" onclick="event.stopPropagation(); viewFullPhoto('${escJsAttr(url)}','${label} - ${escJsAttr(dongHoRaw)}')"><span class="p-photo-tag">${label}</span></div>`;
 }
 
 function viewFullPhoto(url, caption) {
