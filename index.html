@@ -917,9 +917,17 @@ function cardHtml(it) {
     </div>
   `;
 }
+// 목록 카드 썸네일은 92px짜리 작은 칸인데 저장 URL은 상세보기용 원본(sz=w2200)이라,
+// 그대로 쓰면 카드마다 300~850KB 사진을 매번 받아온다(1호 index.html에서 2026-09-06에
+// 발견·수정한 것과 같은 문제 — 2호를 새로 만들 때 이 부분만 이식이 안 됐었다).
+// 확대보기(viewFullPhoto)는 여전히 원본 그대로 넘긴다 — 썸네일 src만 축소.
+function thumbUrl(url) {
+  if (!url) return url;
+  return url.replace(/([?&]sz=)w\d+/, '$1w200');
+}
 function photoSlotHtml(label, url, dongHoRaw) {
   if (!url) return `<div class="p-photo-slot p-photo-empty">${label}<br>사진 없음</div>`;
-  return `<div class="p-photo-slot"><img src="${esc(url)}" loading="lazy" onclick="event.stopPropagation(); viewFullPhoto('${escJsAttr(url)}','${label} - ${escJsAttr(dongHoRaw)}')"><span class="p-photo-tag">${label}</span></div>`;
+  return `<div class="p-photo-slot"><img src="${esc(thumbUrl(url))}" loading="lazy" decoding="async" onclick="event.stopPropagation(); viewFullPhoto('${escJsAttr(url)}','${label} - ${escJsAttr(dongHoRaw)}')"><span class="p-photo-tag">${label}</span></div>`;
 }
 
 function viewFullPhoto(url, caption) {
