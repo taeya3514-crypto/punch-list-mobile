@@ -741,6 +741,24 @@ function getRenderList() {
 // ── 목록 로딩 / 설정 로딩 ─────────────────────────────────────────
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ── 목록 로컬 캐시 ────────────────────────────────────────────────
+// 앱시트처럼 "열자마자 뭔가 보이는" 체감을 내기 위한 것 — 최초 로딩 스피너를
+// 없애는 게 아니라, 직전 세션에서 성공적으로 받아온 목록을 먼저 화면에 깔아두고
+// (실제 서버 상태와 약간 다를 수 있음) 그 사이에 진짜 최신 데이터를 조용히
+// 백그라운드로 받아와 갱신한다. 최초 접속(캐시 없음)은 기존과 동일하게 로딩 표시.
+const LIST_CACHE_KEY = 'PUNCH_LIST_CACHE_V1';
+function loadCachedList() {
+  try {
+    const raw = localStorage.getItem(LIST_CACHE_KEY);
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) { serverList = arr; return true; } }
+  } catch (e) { console.warn('목록 캐시 복원 실패:', e); }
+  return false;
+}
+function saveCachedList() {
+  try { localStorage.setItem(LIST_CACHE_KEY, JSON.stringify(serverList)); }
+  catch (e) { console.warn('목록 캐시 저장 실패(localStorage 용량초과 등):', e); }
+}
+
 async function loadList(showBusy) {
   if (showBusy) busy(true, '⏳ 펀치 데이터 불러오는 중...');
   // 모바일 네트워크(특히 현장)에서 JSONP 스크립트 로드가 간헐적으로 실패하는 사례가
@@ -749,7 +767,7 @@ async function loadList(showBusy) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await gasCall('getPunchList', {});
-      if (Array.isArray(res)) { serverList = res; }
+      if (Array.isArray(res)) { serverList = res; saveCachedList(); }
       lastErr = null;
       break;
     } catch (e) {
@@ -1122,10 +1140,11 @@ function initApp() {
   restoreQueue();
   populateDongOptions();
   onFormTradeChange();
-  applyFilters();
+  const hadCache = loadCachedList();
+  applyFilters(); // 캐시가 있으면 서버 응답을 기다리지 않고 즉시 화면에 반영
   updateOfflineBanner();
   loadConfig();
-  loadList(true);
+  loadList(!hadCache); // 캐시가 있으면 전체화면 로딩 없이 조용히 백그라운드 새로고침
   runQueue();
 
   window.addEventListener('online', () => { updateOfflineBanner(); runQueue(); loadList(false); });
