@@ -262,8 +262,10 @@
         <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다. 전/후 사진이 둘 다 채워지면 상태가 자동으로 "완료"로 제안됩니다(강제 아님, 저장 전 언제든 직접 바꿀 수 있음).</li>
         <li><strong>삭제</strong> — 상세보기 모달 하단 "🗑️ 삭제" 버튼. 실제로 지워지는 게 아니라 목록에서만 안 보이게 처리되어, 필요하면 나중에 복구할 수 있습니다.</li>
         <li><strong>출력</strong> — 헤더의 📊 버튼은 사진 URL 포함 엑셀(CSV) 내보내기, 🖨️ 버튼은 인쇄용 표 화면을 새 창으로 열어 바로 인쇄합니다. 노트북에서 접속해도 등록·수정·삭제·출력 전부 동일하게 됩니다.</li>
+        <li><strong>등록자/수정자 기록</strong> — 처음 저장할 때 이름을 한 번 물어보고, 이후 등록/수정할 때마다 자동으로 기록됩니다(상세보기에 표시). 아래 버튼으로 언제든 바꿀 수 있습니다.</li>
         <li><strong>1호와의 차이</strong> — 이 화면은 모바일 터치 전용 카드 화면입니다(다현장 관리 등 일부 고급 기능은 기존 1호에만 있음).</li>
       </ol>
+      <button class="btn btn-ghost" style="margin-top:14px;" onclick="changeUserName()">👤 내 이름 변경</button>
     </div>
   </div>
 </div>
@@ -440,6 +442,25 @@ function escJsAttr(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+// 등록자/수정자 기록(2026-09-17 신설) — 로그인이 없어 서버가 "누가"인지 알 방법이
+// 없으므로, 기기별로 이름을 한 번만 물어보고 localStorage에 저장해 매 저장마다
+// 자동으로 실어 보낸다(자기신고 방식이라 완벽한 인증은 아님 — 책임소재 추적용).
+const USER_NAME_KEY = 'PUNCH_USER_NAME';
+function getUserName() {
+  let name = localStorage.getItem(USER_NAME_KEY);
+  if (name === null) {
+    name = (prompt('현장에서 등록/수정하시는 분 성함을 입력해주세요.\n(한 번만 물어보며, 나중에 "❓사용방법"에서 바꿀 수 있습니다)') || '').trim();
+    try { localStorage.setItem(USER_NAME_KEY, name); } catch (e) { console.warn('이름 저장 실패:', e); }
+  }
+  return name;
+}
+function changeUserName() {
+  const cur = localStorage.getItem(USER_NAME_KEY) || '';
+  const next = prompt('이름을 입력해주세요:', cur);
+  if (next === null) return; // 취소
+  try { localStorage.setItem(USER_NAME_KEY, next.trim()); } catch (e) { console.warn('이름 저장 실패:', e); }
+  toast('✅ 이름이 "' + (next.trim() || '(미입력)') + '"(으)로 저장되었습니다.');
+}
 function uid() { return 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function nowKST() {
   const d = new Date();
@@ -1075,11 +1096,15 @@ function openEditModal(id) {
   document.getElementById('modal-delete-btn').style.display = 'block';
 
   const noteEl = document.getElementById('modal-sync-note');
+  let noteHtml = '';
   if (item._sync === 'failed') {
-    noteEl.innerHTML = `<div class="card-sync-note fail">⚠️ 이전 저장이 실패했습니다: ${esc(item._syncError||'')}<br>내용을 확인하고 다시 저장하면 재시도됩니다.</div>`;
-  } else {
-    noteEl.innerHTML = '';
+    noteHtml += `<div class="card-sync-note fail">⚠️ 이전 저장이 실패했습니다: ${esc(item._syncError||'')}<br>내용을 확인하고 다시 저장하면 재시도됩니다.</div>`;
   }
+  const regBits = [];
+  if (item['등록자']) regBits.push('등록: ' + esc(item['등록자']));
+  if (item['최종수정자']) regBits.push('수정: ' + esc(item['최종수정자']) + (item['최종수정일시'] ? ' · ' + esc(item['최종수정일시']) : ''));
+  if (regBits.length) noteHtml += `<div class="field-hint" style="margin-bottom:12px;">${regBits.join(' · ')}</div>`;
+  noteEl.innerHTML = noteHtml;
 
   document.getElementById('fi-gonggu').value = item['공구'] || '';
   document.getElementById('fi-dong').value = item['동'] || '';
@@ -1119,6 +1144,8 @@ function collectFormFields() {
 function saveFromModal() {
   const fields = collectFormFields();
   const photos = { before: pendingPhotoBefore, after: pendingPhotoAfter };
+  const userName = getUserName();
+  if (isAddMode) fields['등록자'] = userName; else fields['최종수정자'] = userName;
 
   if (isAddMode) {
     enqueueAdd(fields, photos);
@@ -1210,7 +1237,7 @@ function exportExcel() {
     toast('내보낼 데이터가 없습니다.');
     return;
   }
-  let csv = '﻿ID,현장,공구,동,호수,동호수,위치,공종,세부공종,유형,결함내용,상태,업체명,등록일,시공전사진URL,시공후사진URL,전체사진URL\n';
+  let csv = '﻿ID,현장,공구,동,호수,동호수,위치,공종,세부공종,유형,결함내용,상태,업체명,등록일,등록자,최종수정자,최종수정일시,시공전사진URL,시공후사진URL,전체사진URL\n';
   filteredList.forEach(i => {
     const id       = i['ID'] || '';
     const site     = i['현장'] || '';
@@ -1226,11 +1253,14 @@ function exportExcel() {
     const status   = i['상태'] || '';
     const vendor   = i['업체명'] || '';
     const date     = i['등록일'] || '';
+    const regBy    = i['등록자'] || '';
+    const modBy    = i['최종수정자'] || '';
+    const modAt    = i['최종수정일시'] || '';
     const pBefore  = i['시공전사진URL'] || i['시공전 사진URL'] || i['사진URL'] || '';
     const pAfter   = i['시공후사진URL'] || i['시공후 사진URL'] || '';
     const pAll     = [pBefore, pAfter].filter(Boolean).join(' | ');
 
-    csv += `"${id}","${site}","${gonggu}","${dong}","${ho}","${dongHo}","${loc}","${trade}","${subtrade}","${type}","${content}","${status}","${vendor}","${date}","${pBefore}","${pAfter}","${pAll}"\n`;
+    csv += `"${id}","${site}","${gonggu}","${dong}","${ho}","${dongHo}","${loc}","${trade}","${subtrade}","${type}","${content}","${status}","${vendor}","${date}","${regBy}","${modBy}","${modAt}","${pBefore}","${pAfter}","${pAll}"\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
