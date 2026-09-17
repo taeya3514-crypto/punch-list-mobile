@@ -258,7 +258,7 @@
         <li><strong>등록</strong> — 오른쪽 아래 ＋ 버튼. 사진부터 찍고 나머지 항목은 나중에 채워도 됩니다.</li>
         <li><strong>즉시 저장</strong> — 저장을 누르면 화면엔 바로 반영되고, 실제 서버 저장은 뒤에서 자동으로 진행됩니다.</li>
         <li><strong>동기화 상태</strong> — 카드에 "저장 대기중/동기화중/실패" 표시가 뜨면 아직 서버에 완전히 반영되지 않은 것입니다. "실패"는 탭하면 다시 시도합니다.</li>
-        <li><strong>오프라인</strong> — 인터넷이 끊겨도 등록/수정은 계속 가능하고, 연결되면 자동으로 밀린 저장이 진행됩니다. 화면을 새로고침해도 대기 중인 저장 내용은 유지됩니다.</li>
+        <li><strong>오프라인</strong> — 인터넷이 끊겨도 등록/수정/삭제는 계속 가능하고, 연결되면 자동으로 밀린 작업이 진행됩니다. 화면을 새로고침해도 대기 중인 내용은 유지됩니다.</li>
         <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다. 전/후 사진이 둘 다 채워지면 상태가 자동으로 "완료"로 제안됩니다(강제 아님, 저장 전 언제든 직접 바꿀 수 있음).</li>
         <li><strong>삭제</strong> — 상세보기 모달 하단 "🗑️ 삭제" 버튼. 실제로 지워지는 게 아니라 목록에서만 안 보이게 처리되어, 필요하면 나중에 복구할 수 있습니다.</li>
         <li><strong>출력</strong> — 헤더의 📊 버튼은 사진 URL 포함 엑셀(CSV) 내보내기, 🖨️ 버튼은 인쇄용 표 화면을 새 창으로 열어 바로 인쇄합니다. 노트북에서 접속해도 등록·수정·삭제·출력 전부 동일하게 됩니다.</li>
@@ -613,8 +613,23 @@ function enqueueUpdate(id, fields, photos) {
   persistQueue();
   return task;
 }
+function enqueueDelete(id) {
+  const task = {
+    qid: uid(), kind: 'delete', localId: String(id),
+    fields: null, photos: { before:null, after:null }, uploadedUrls: { before:null, after:null },
+    status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
+  };
+  queue.push(task);
+  persistQueue();
+  return task;
+}
 
 async function executeTask(task) {
+  if (task.kind === 'delete') {
+    await gasCall('deletePunch', { id: task.localId });
+    serverList = serverList.filter(i => String(i['ID']) !== String(task.localId));
+    return;
+  }
   // 사진이 있으면 먼저 업로드(재시도 시 이미 업로드된 것은 건너뜀 — uploadedUrls에 남아있음)
   for (const type of ['before','after']) {
     if (task.photos[type] && !task.uploadedUrls[type]) {
@@ -730,6 +745,13 @@ function updateSyncIndicator() {
 function getRenderList() {
   const byId = new Map();
   serverList.forEach(it => byId.set(String(it['ID']), { ...it, _sync: 'synced', _syncError: '', _qid: null }));
+
+  // 삭제 대기/처리중/실패 항목은 성공여부와 무관하게 즉시 화면에서 숨긴다(사용자가
+  // 이미 삭제를 확정한 것이므로 재시공하는 게 아님). 실패하면 카드가 아니라
+  // 상단 동기화 실패 배너의 "전체 재시도"로만 다시 시도된다(deleteFromModal이
+  // 큐에 넣기 전 같은 ID의 다른 대기작업을 먼저 취소하므로 update 오버레이와
+  // 충돌할 일은 없다).
+  queue.forEach(task => { if (task.kind === 'delete') byId.delete(String(task.localId)); });
 
   queue.forEach(task => {
     if (task.kind !== 'update') return;
@@ -1122,7 +1144,7 @@ function saveFromModal() {
   runQueue();
 }
 
-async function deleteFromModal() {
+function deleteFromModal() {
   if (!currentEditId) return;
   const id = currentEditId;
   if (!confirm('이 항목을 삭제하시겠습니까?\n(삭제해도 시트에서는 "삭제됨" 상태로만 표시되어, 필요하면 나중에 되살릴 수 있습니다)')) return;
@@ -1130,30 +1152,25 @@ async function deleteFromModal() {
   const isTemp = String(id).startsWith('tmp_');
   closePunchModal();
 
+  // 이 항목에 대해 대기 중이던 다른 작업(수정 등)은 삭제로 인해 의미가 없어지므로 먼저 취소
+  const existingTask = findQueueTaskForLocalId(id);
+  if (existingTask) removeTaskFromQueue(existingTask.qid);
+
   if (isTemp) {
-    // 아직 서버에 한 번도 저장된 적 없는 항목 — 큐에서만 취소하면 됨
-    const task = findQueueTaskForLocalId(id);
-    if (task) removeTaskFromQueue(task.qid);
+    // 서버에 한 번도 등록된 적 없는 항목 — 큐에서 빼는 것만으로 끝(서버 호출 불필요)
     persistQueue();
     applyFilters();
     toast('🗑️ 삭제했습니다 (서버 미등록 항목)');
     return;
   }
 
-  // 이미 서버에 있던 항목 — 낙관적으로 화면에서 먼저 지우고, 뒤에서 서버에도 삭제 요청
-  serverList = serverList.filter(i => String(i['ID']) !== String(id));
-  const pendingTask = findQueueTaskForLocalId(id);
-  if (pendingTask) { removeTaskFromQueue(pendingTask.qid); persistQueue(); }
+  // 이미 서버에 등록된 항목 — 등록/수정과 동일하게 큐에 넣어 백그라운드 처리 + 실패시
+  // 자동/수동 재시도(예전엔 여기서만 1회성 gasCall로 처리해서, 오프라인이면 재시도
+  // 없이 서버와 영구히 어긋날 수 있었음 — 2026-09-17 발견, 큐 방식으로 통일)
+  enqueueDelete(id);
   applyFilters();
-  toast('🗑️ 삭제 처리 중...');
-  try {
-    await gasCall('deletePunch', { id: id });
-    toast('✅ 삭제 완료');
-  } catch (err) {
-    console.warn('deletePunch 실패:', err);
-    toast('❌ 삭제 실패 — 목록을 새로고침합니다. (' + (err && err.message ? err.message : err) + ')');
-    loadList(false);
-  }
+  toast('🗑️ 삭제 처리중 — 실패하면 자동으로 재시도됩니다');
+  runQueue();
 }
 
 // ── 초기화 ────────────────────────────────────────────────────────
