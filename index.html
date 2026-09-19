@@ -446,16 +446,13 @@ function escJsAttr(s) {
 }
 function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
 // 등록자/수정자 기록(2026-09-17 신설) — 로그인이 없어 서버가 "누가"인지 알 방법이
-// 없으므로, 기기별로 이름을 한 번만 물어보고 localStorage에 저장해 매 저장마다
-// 자동으로 실어 보낸다(자기신고 방식이라 완벽한 인증은 아님 — 책임소재 추적용).
+// 없어 자기신고 방식으로 기기별 이름을 localStorage에 저장해 저장 시 실어 보낸다.
+// 2026-09-19: 첫 저장 시 강제로 물어보던 prompt()를 제거 — 이름을 등록하고 싶은
+// 사람만 "👤 내 이름 변경" 버튼으로 자발적으로 설정. 미설정이면 빈 값 그대로 전송
+// (서버는 빈 값을 정상 처리함).
 const USER_NAME_KEY = 'PUNCH_USER_NAME';
 function getUserName() {
-  let name = localStorage.getItem(USER_NAME_KEY);
-  if (name === null) {
-    name = (prompt('현장에서 등록/수정하시는 분 성함을 입력해주세요.\n(한 번만 물어보며, 나중에 "❓사용방법"에서 바꿀 수 있습니다)') || '').trim();
-    try { localStorage.setItem(USER_NAME_KEY, name); } catch (e) { console.warn('이름 저장 실패:', e); }
-  }
-  return name;
+  return localStorage.getItem(USER_NAME_KEY) || '';
 }
 function changeUserName() {
   const cur = localStorage.getItem(USER_NAME_KEY) || '';
