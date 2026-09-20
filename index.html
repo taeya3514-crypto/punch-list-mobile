@@ -1216,10 +1216,15 @@ function initApp() {
   window.addEventListener('offline', updateOfflineBanner);
 
   // 15초 주기 자동 동기화 — 1호와 동일한 주기. 등록/수정 모달이 열려있으면 건너뜀(입력 중 화면 흔들림 방지)
+  // 화면이 백그라운드(다른 앱 전환/화면 꺼짐)면 건너뜀 — 모바일 데이터/배터리 절약, 화면 복귀 시 즉시 1회 갱신
   setInterval(() => {
+    if (document.hidden) return;
     if (!document.getElementById('punch-modal').classList.contains('hidden')) return;
     loadList(false);
   }, 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadList(false);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
