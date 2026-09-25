@@ -838,10 +838,26 @@ async function loadList(showBusy) {
   applyFilters();
   busy(false);
 }
+// 목록(getPunchList)은 9/16에 로컬 캐시를 붙여 재접속 시 0ms로 뜨는데, 설정(동/업체
+// 드롭다운)은 그 패턴이 이식되지 않아 재접속 때도 매번 서버 응답(실측 1.6~2.5초)을
+// 그대로 기다렸다 — 그 사이 "+ 신규등록"을 누르면 업체명 자동완성이 빈 채로 뜨는 창이
+// 있었음(sim_config_cache_gap.js로 확인). 동일한 캐시우선 패턴을 적용한다.
+const CONFIG_CACHE_KEY = 'PUNCH_CONFIG_CACHE_V1';
+function loadCachedConfig() {
+  try {
+    const raw = localStorage.getItem(CONFIG_CACHE_KEY);
+    if (raw) { const obj = JSON.parse(raw); if (obj && obj.vendorList) { SERVER_CONFIG_DATA = obj; return true; } }
+  } catch (e) { console.warn('설정 캐시 복원 실패:', e); }
+  return false;
+}
+function saveCachedConfig() {
+  try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(SERVER_CONFIG_DATA)); }
+  catch (e) { console.warn('설정 캐시 저장 실패(localStorage 용량초과 등):', e); }
+}
 async function loadConfig() {
   try {
     const res = await gasCall('getDropdownConfig', {});
-    if (res) { SERVER_CONFIG_DATA = res; populateDongOptions(); populateVendorDatalist(); }
+    if (res) { SERVER_CONFIG_DATA = res; populateDongOptions(); populateVendorDatalist(); saveCachedConfig(); }
   } catch (e) { console.warn('설정 로딩 실패, 기본값 사용:', e); }
 }
 function populateDongOptions() {
@@ -1203,6 +1219,7 @@ function updateOfflineBanner() {
 
 function initApp() {
   restoreQueue();
+  loadCachedConfig(); // 캐시 있으면 아래 onFormTradeChange()가 바로 실데이터로 업체자동완성을 채움
   populateDongOptions();
   onFormTradeChange();
   const hadCache = loadCachedList();
