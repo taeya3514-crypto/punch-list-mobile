@@ -194,6 +194,11 @@
   </div>
 </header>
 
+<div class="filter-trigger-row" style="margin-bottom:10px;">
+  <select id="site-switcher" onchange="onSiteChange()" style="flex:1; background:var(--card-bg); border:1.5px solid var(--card-border); color:var(--text); padding:12px; border-radius:12px; font-weight:800; font-size:0.95rem;"></select>
+  <button class="filter-trigger-btn" style="flex:0 0 auto; padding:12px 14px;" onclick="openAddSitePrompt()" title="새 현장 추가">➕현장</button>
+</div>
+
 <div id="offline-banner"><span>📴 오프라인 — 인터넷이 연결되면 자동으로 저장됩니다</span></div>
 <div id="fail-banner" onclick="retryAllFailed()">
   <span id="fail-banner-text">⚠️ 동기화 실패</span>
@@ -389,6 +394,11 @@
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw491M3A108qj8AQst3yxvphswCM0Dq4_9ghnlFJJoXyyS1ecRrLHl7P9wuKSWg-bLGNw/exec';
 const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1MvrSUtQuaLPRKi3j7rg-jKMlI51ACQq8n5N-RBGj5Gs/edit';
 const DEFAULT_SITE = '양주역푸르지오';
+// 2026-09-25 다현장 지원 — 1호(index.html)와 동일 패턴. 선택된 현장은 localStorage에 유지되고,
+// 동기화 큐(오프라인 작업 대기열)는 현장을 섞으면 안 되므로 큐 저장키에도 현장명을 포함시킨다.
+const CURRENT_SITE_KEY = 'PUNCH_CURRENT_SITE';
+let currentSite = localStorage.getItem(CURRENT_SITE_KEY) || DEFAULT_SITE;
+let siteList = [];
 const STORAGE_KEY = 'punchlist_mobile_queue_v1';
 const DEFAULT_DONG_LIST = ['101동','102동','103동','104동','105동','106동','107동','108동','지하1층','지하2층','지하3층','상가동'];
 const TRADES = {
@@ -608,9 +618,12 @@ function removeTaskFromQueue(qid) {
   queue = queue.filter(t => t.qid !== qid);
 }
 
+// siteName은 생성 시점의 currentSite를 그대로 굳혀서 담는다(2026-09-25) — 큐 작업이
+// 백그라운드에서 나중에 실행될 때 사용자가 이미 다른 현장으로 전환했더라도, 이 작업은
+// 항상 등록될 당시의 현장으로 정확히 전송돼야 한다(실행시점의 currentSite를 쓰면 안 됨).
 function enqueueAdd(fields, photos) {
   const task = {
-    qid: uid(), kind: 'add', localId: uid(),
+    qid: uid(), kind: 'add', localId: uid(), siteName: currentSite,
     fields, photos: photos || { before:null, after:null },
     uploadedUrls: { before:null, after:null },
     status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
@@ -621,7 +634,7 @@ function enqueueAdd(fields, photos) {
 }
 function enqueueUpdate(id, fields, photos) {
   const task = {
-    qid: uid(), kind: 'update', localId: String(id),
+    qid: uid(), kind: 'update', localId: String(id), siteName: currentSite,
     fields, photos: photos || { before:null, after:null },
     uploadedUrls: { before:null, after:null },
     status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
@@ -632,7 +645,7 @@ function enqueueUpdate(id, fields, photos) {
 }
 function enqueueDelete(id) {
   const task = {
-    qid: uid(), kind: 'delete', localId: String(id),
+    qid: uid(), kind: 'delete', localId: String(id), siteName: currentSite,
     fields: null, photos: { before:null, after:null }, uploadedUrls: { before:null, after:null },
     status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
   };
@@ -641,10 +654,15 @@ function enqueueDelete(id) {
   return task;
 }
 
+// task.siteName(등록 당시 현장, currentSite 아님)을 모든 gasCall에 명시적으로 실어 보낸다 —
+// 백그라운드 큐 처리 중 사용자가 이미 다른 현장으로 화면을 전환했을 수 있어(2026-09-25),
+// 그 시점의 currentSite를 쓰면 엉뚱한 현장 스프레드시트에 잘못 쓰일 위험이 있다.
+// serverList(현재 화면에 보이는 목록)는 그 작업이 "지금 보고 있는 현장" 것일 때만 반영한다 —
+// 다른 현장 작업이 백그라운드에서 끝나서 지금 화면 데이터를 오염시키면 안 되기 때문.
 async function executeTask(task) {
   if (task.kind === 'delete') {
-    await gasCall('deletePunch', { id: task.localId });
-    serverList = serverList.filter(i => String(i['ID']) !== String(task.localId));
+    await gasCall('deletePunch', { id: task.localId, siteName: task.siteName });
+    if (task.siteName === currentSite) serverList = serverList.filter(i => String(i['ID']) !== String(task.localId));
     return;
   }
   // 사진이 있으면 먼저 업로드(재시도 시 이미 업로드된 것은 건너뜀 — uploadedUrls에 남아있음).
@@ -658,7 +676,8 @@ async function executeTask(task) {
       const res = await gasCall('uploadPhoto', {
         base64Data: task.photos[type],
         punchId: task.kind === 'add' ? 'New' : task.localId,
-        photoType: type
+        photoType: type,
+        siteName: task.siteName
       });
       if (!res || res.ok === false) throw new Error((res && res.error) || '사진 업로드 실패');
       task.uploadedUrls[type] = res.url;
@@ -671,15 +690,19 @@ async function executeTask(task) {
   if (task.uploadedUrls.after) { data['시공후사진URL'] = task.uploadedUrls.after; }
 
   if (task.kind === 'add') {
-    const res = await gasCall('addPunch', data);
+    const res = await gasCall('addPunch', { ...data, siteName: task.siteName });
     if (!res || !res.id) throw new Error('등록 실패: 서버 응답에 ID가 없습니다.');
-    const item = { ...data, 'ID': res.id, '등록일': nowKST(), '상태': data['상태'] || '신규' };
-    serverList.push(item);
+    if (task.siteName === currentSite) {
+      const item = { ...data, 'ID': res.id, '등록일': nowKST(), '상태': data['상태'] || '신규' };
+      serverList.push(item);
+    }
   } else {
-    await gasCall('updatePunch', { id: task.localId, data });
-    const idx = serverList.findIndex(i => String(i['ID']) === String(task.localId));
-    if (idx !== -1) serverList[idx] = { ...serverList[idx], ...data };
-    else serverList.push({ ...data, 'ID': task.localId });
+    await gasCall('updatePunch', { id: task.localId, data, siteName: task.siteName });
+    if (task.siteName === currentSite) {
+      const idx = serverList.findIndex(i => String(i['ID']) === String(task.localId));
+      if (idx !== -1) serverList[idx] = { ...serverList[idx], ...data };
+      else serverList.push({ ...data, 'ID': task.localId });
+    }
   }
 }
 
@@ -731,19 +754,22 @@ function retryTask(qid) {
 }
 function retryAllFailed() {
   let any = false;
-  queue.forEach(t => { if (t.status === 'failed') { t.status = 'pending'; t.attempts = 0; t.lastError = ''; any = true; } });
+  queue.forEach(t => { if (t.status === 'failed' && taskBelongsToCurrentSite_(t)) { t.status = 'pending'; t.attempts = 0; t.lastError = ''; any = true; } });
   if (!any) return;
   persistQueue(); applyFilters(); runQueue();
 }
 function onSyncChipTap() {
-  const failed = queue.filter(t => t.status === 'failed').length;
+  const failed = queue.filter(t => t.status === 'failed' && taskBelongsToCurrentSite_(t)).length;
   if (failed > 0) { retryAllFailed(); return; }
   loadList(true);
 }
 
+// 표시되는 배지/배너는 지금 보고 있는 현장 것만 센다 — 다른 현장 배경동기화는 계속 돌지만
+// 화면엔 안 보여야 사용자가 "지금 이 현장" 상태로 오해하지 않는다(2026-09-25).
 function updateSyncIndicator() {
-  const pending = queue.filter(t => t.status === 'pending' || t.status === 'syncing').length;
-  const failed = queue.filter(t => t.status === 'failed').length;
+  const siteQueue = queue.filter(taskBelongsToCurrentSite_);
+  const pending = siteQueue.filter(t => t.status === 'pending' || t.status === 'syncing').length;
+  const failed = siteQueue.filter(t => t.status === 'failed').length;
   const el = document.getElementById('sync-indicator');
   const banner = document.getElementById('fail-banner');
   if (!el) return;
@@ -763,6 +789,13 @@ function updateSyncIndicator() {
   }
 }
 
+// 큐에는 다른 현장 작업도 섞여 있을 수 있어(백그라운드 동기화 중 현장전환, 2026-09-25) 화면
+// 렌더링에는 지금 보고 있는 현장 것만 반영한다. siteName이 없는 옛 큐 항목(이 기능 이전에
+// 저장된 것)은 DEFAULT_SITE로 간주해 하위호환한다.
+function taskBelongsToCurrentSite_(task) {
+  return (task.siteName || DEFAULT_SITE) === currentSite;
+}
+
 // ── 서버 데이터 + 큐를 합쳐서 화면에 그릴 목록 만들기 ──────────────
 function getRenderList() {
   const byId = new Map();
@@ -773,10 +806,10 @@ function getRenderList() {
   // 상단 동기화 실패 배너의 "전체 재시도"로만 다시 시도된다(deleteFromModal이
   // 큐에 넣기 전 같은 ID의 다른 대기작업을 먼저 취소하므로 update 오버레이와
   // 충돌할 일은 없다).
-  queue.forEach(task => { if (task.kind === 'delete') byId.delete(String(task.localId)); });
+  queue.forEach(task => { if (task.kind === 'delete' && taskBelongsToCurrentSite_(task)) byId.delete(String(task.localId)); });
 
   queue.forEach(task => {
-    if (task.kind !== 'update') return;
+    if (task.kind !== 'update' || !taskBelongsToCurrentSite_(task)) return;
     const base = byId.get(String(task.localId)) || { 'ID': task.localId };
     const merged = { ...base, ...task.fields };
     if (task.photos.before) merged['시공전사진URL'] = task.uploadedUrls.before || task.photos.before;
@@ -787,7 +820,7 @@ function getRenderList() {
 
   const pendingNew = [];
   queue.forEach(task => {
-    if (task.kind !== 'add') return;
+    if (task.kind !== 'add' || !taskBelongsToCurrentSite_(task)) return;
     const merged = { ...task.fields, 'ID': task.localId, _tempNew: true };
     if (task.photos.before) merged['시공전사진URL'] = task.uploadedUrls.before || task.photos.before;
     if (task.photos.after) merged['시공후사진URL'] = task.uploadedUrls.after || task.photos.after;
@@ -807,16 +840,17 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // 없애는 게 아니라, 직전 세션에서 성공적으로 받아온 목록을 먼저 화면에 깔아두고
 // (실제 서버 상태와 약간 다를 수 있음) 그 사이에 진짜 최신 데이터를 조용히
 // 백그라운드로 받아와 갱신한다. 최초 접속(캐시 없음)은 기존과 동일하게 로딩 표시.
-const LIST_CACHE_KEY = 'PUNCH_LIST_CACHE_V1';
+// 캐시키에 현장명을 포함 — 현장 전환 시 이전 현장 캐시가 잘못 보이는 것 방지(2026-09-25)
+function listCacheKey_() { return 'PUNCH_LIST_CACHE_V1_' + currentSite; }
 function loadCachedList() {
   try {
-    const raw = localStorage.getItem(LIST_CACHE_KEY);
+    const raw = localStorage.getItem(listCacheKey_());
     if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) { serverList = arr; return true; } }
   } catch (e) { console.warn('목록 캐시 복원 실패:', e); }
   return false;
 }
 function saveCachedList() {
-  try { localStorage.setItem(LIST_CACHE_KEY, JSON.stringify(serverList)); }
+  try { localStorage.setItem(listCacheKey_(), JSON.stringify(serverList)); }
   catch (e) { console.warn('목록 캐시 저장 실패(localStorage 용량초과 등):', e); }
 }
 
@@ -827,7 +861,7 @@ async function loadList(showBusy) {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await gasCall('getPunchList', {});
+      const res = await gasCall('getPunchList', { siteName: currentSite });
       if (Array.isArray(res)) { serverList = res; saveCachedList(); }
       lastErr = null;
       break;
@@ -847,21 +881,21 @@ async function loadList(showBusy) {
 // 드롭다운)은 그 패턴이 이식되지 않아 재접속 때도 매번 서버 응답(실측 1.6~2.5초)을
 // 그대로 기다렸다 — 그 사이 "+ 신규등록"을 누르면 업체명 자동완성이 빈 채로 뜨는 창이
 // 있었음(sim_config_cache_gap.js로 확인). 동일한 캐시우선 패턴을 적용한다.
-const CONFIG_CACHE_KEY = 'PUNCH_CONFIG_CACHE_V1';
+function configCacheKey_() { return 'PUNCH_CONFIG_CACHE_V1_' + currentSite; }
 function loadCachedConfig() {
   try {
-    const raw = localStorage.getItem(CONFIG_CACHE_KEY);
+    const raw = localStorage.getItem(configCacheKey_());
     if (raw) { const obj = JSON.parse(raw); if (obj && obj.vendorList) { SERVER_CONFIG_DATA = obj; return true; } }
   } catch (e) { console.warn('설정 캐시 복원 실패:', e); }
   return false;
 }
 function saveCachedConfig() {
-  try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(SERVER_CONFIG_DATA)); }
+  try { localStorage.setItem(configCacheKey_(), JSON.stringify(SERVER_CONFIG_DATA)); }
   catch (e) { console.warn('설정 캐시 저장 실패(localStorage 용량초과 등):', e); }
 }
 async function loadConfig() {
   try {
-    const res = await gasCall('getDropdownConfig', {});
+    const res = await gasCall('getDropdownConfig', { siteName: currentSite });
     if (res) { SERVER_CONFIG_DATA = res; populateDongOptions(); populateVendorDatalist(); saveCachedConfig(); }
   } catch (e) { console.warn('설정 로딩 실패, 기본값 사용:', e); }
 }
@@ -1143,7 +1177,7 @@ function closePunchModal() { document.getElementById('punch-modal').classList.ad
 function collectFormFields() {
   const dong = v('fi-dong'), ho = v('fi-ho');
   return {
-    '현장': DEFAULT_SITE,
+    '현장': currentSite,
     '공구': v('fi-gonggu'),
     '동': dong,
     '호수': ho,
@@ -1222,8 +1256,63 @@ function updateOfflineBanner() {
   document.getElementById('offline-banner').style.display = navigator.onLine ? 'none' : 'flex';
 }
 
+// ── 다현장 선택 UI (2026-09-25, 1호와 동일 패턴) ────────────────────
+function renderSiteSwitcher() {
+  const sel = document.getElementById('site-switcher');
+  if (!sel) return;
+  const names = siteList.length ? siteList.map(s => s.name) : [currentSite];
+  if (!names.includes(currentSite)) names.unshift(currentSite);
+  sel.innerHTML = names.map(n => `<option value="${esc(n)}" ${n === currentSite ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
+async function loadSiteList() {
+  try {
+    const res = await gasCall('getSiteList', {});
+    if (Array.isArray(res) && res.length) siteList = res;
+  } catch (e) { console.warn('현장목록 로딩 실패:', e); }
+  renderSiteSwitcher();
+}
+// 현장 전환 시 화면상태를 초기화하고(큐는 안 지움 — 다른 현장 작업은 백그라운드에서 계속 진행)
+// 그 현장의 캐시 유무에 따라 즉시/대기 렌더링한다.
+function onSiteChange() {
+  const sel = document.getElementById('site-switcher');
+  const next = sel.value;
+  if (!next || next === currentSite) return;
+  currentSite = next;
+  localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+  serverList = [];
+  SERVER_CONFIG_DATA = null;
+  loadCachedConfig();
+  populateDongOptions();
+  onFormTradeChange();
+  const hadCache = loadCachedList();
+  applyFilters();
+  loadConfig();
+  loadList(!hadCache);
+  toast('🏗️ "' + currentSite + '" 현장으로 전환되었습니다.');
+}
+async function openAddSitePrompt() {
+  const name = prompt('새 현장명을 입력하세요 (예: 하남감일 지구대):');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  if (siteList.some(s => s.name === trimmed)) { toast('⚠️ 이미 존재하는 현장명입니다.'); return; }
+  busy(true, '⏳ 새 현장 생성 중... (스프레드시트 복사라 몇 초 걸릴 수 있습니다)');
+  try {
+    await gasCall('createSite', { siteName: trimmed });
+    toast('✅ "' + trimmed + '" 현장이 생성되었습니다.');
+    await loadSiteList();
+    document.getElementById('site-switcher').value = trimmed;
+    onSiteChange();
+  } catch (e) {
+    toast('⚠️ 현장 생성 실패: ' + (e.message || e));
+  } finally {
+    busy(false);
+  }
+}
+
 function initApp() {
   restoreQueue();
+  renderSiteSwitcher(); // 네트워크 응답 전, 지금 선택된 현장명만이라도 즉시 표시
+  loadSiteList();
   loadCachedConfig(); // 캐시 있으면 아래 onFormTradeChange()가 바로 실데이터로 업체자동완성을 채움
   populateDongOptions();
   onFormTradeChange();
