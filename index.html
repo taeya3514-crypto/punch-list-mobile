@@ -1192,6 +1192,23 @@ function collectFormFields() {
   };
 }
 
+// 중복등록 방지(2026-09-25) — 같은 하자를 두 사람이 각각 등록하는 걸 완전히 막지는 못하지만
+// (강제 차단은 9/19에 등록자강제prompt를 되돌린 것과 같은 이유로 안 함 — 현장에서 빠른 입력이
+// 우선), 저장 직전에 위치·공종이 겹치는 미완료 항목이 있으면 경고해서 재확인시킨다.
+// 위치정보(동/호수/위치)가 하나라도 비어있으면(9/20 "미정 10건" 사례처럼 사진만 급히 찍은
+// 경우) 비교 자체가 무의미해 스킵한다.
+function findLikelyDuplicate_(fields) {
+  if (!fields['동'] || !fields['호수'] || !fields['위치']) return null;
+  return getRenderList().find(it =>
+    String(it['상태'] || '') !== '완료' &&
+    String(it['동'] || '') === fields['동'] &&
+    String(it['호수'] || '') === fields['호수'] &&
+    String(it['위치'] || '') === fields['위치'] &&
+    String(it['공종'] || '') === (fields['공종'] || '') &&
+    String(it['세부공종'] || '') === (fields['세부공종'] || '')
+  );
+}
+
 function saveFromModal() {
   const fields = collectFormFields();
   const photos = { before: pendingPhotoBefore, after: pendingPhotoAfter };
@@ -1199,6 +1216,10 @@ function saveFromModal() {
   if (isAddMode) fields['등록자'] = userName; else fields['최종수정자'] = userName;
 
   if (isAddMode) {
+    const dup = findLikelyDuplicate_(fields);
+    if (dup && !confirm(`⚠️ 비슷한 항목이 이미 있습니다 (#${dup['ID']}, ${dup['상태']||'신규'}).\n같은 위치·공종의 하자가 중복 등록될 수 있습니다.\n그래도 등록하시겠습니까?`)) {
+      return; // 등록 취소 — 모달은 유지, 내용 수정 후 다시 저장 가능
+    }
     enqueueAdd(fields, photos);
   } else if (currentEditTaskQid) {
     // 실패했던 작업을 새로 만들지 않고 그 자리에서 고쳐씀 (중복 작업 방지)
