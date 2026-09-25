@@ -647,9 +647,14 @@ async function executeTask(task) {
     serverList = serverList.filter(i => String(i['ID']) !== String(task.localId));
     return;
   }
-  // 사진이 있으면 먼저 업로드(재시도 시 이미 업로드된 것은 건너뜀 — uploadedUrls에 남아있음)
-  for (const type of ['before','after']) {
-    if (task.photos[type] && !task.uploadedUrls[type]) {
+  // 사진이 있으면 먼저 업로드(재시도 시 이미 업로드된 것은 건너뜀 — uploadedUrls에 남아있음).
+  // 전/후 두 장 다 있는 경우(완료 자동제안 케이스, 실사용에서 흔함) 독립적인 두 서버호출을
+  // 순차로 기다리면 동기화 시간이 거의 2배가 된다 — Promise.all로 병렬 처리(2026-09-25,
+  // sim_photo_upload_parallel.js로 50% 절감 확인). 하나가 실패해도 다른 하나의 uploadedUrls는
+  // 그대로 기록되어(async 함수 자체는 취소되지 않음) 재시도 시 중복 업로드하지 않는다.
+  const pendingTypes = ['before','after'].filter(type => task.photos[type] && !task.uploadedUrls[type]);
+  if (pendingTypes.length) {
+    await Promise.all(pendingTypes.map(async type => {
       const res = await gasCall('uploadPhoto', {
         base64Data: task.photos[type],
         punchId: task.kind === 'add' ? 'New' : task.localId,
@@ -657,8 +662,8 @@ async function executeTask(task) {
       });
       if (!res || res.ok === false) throw new Error((res && res.error) || '사진 업로드 실패');
       task.uploadedUrls[type] = res.url;
-      persistQueue();
-    }
+    }));
+    persistQueue();
   }
 
   const data = { ...task.fields };
