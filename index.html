@@ -528,9 +528,34 @@ async function callPost(action, params) {
   return json.data;
 }
 
-function gasCall(action, params) {
+// 2026-09-26 임시 접근제어(패스코드 게이트) — 완전한 계정기반 인증은 아니지만 "URL만 알면
+// 로그인없이 CRUD 가능"이라는 가장 큰 리스크를 막는다. 매 호출에 패스코드를 실어보내고,
+// 서버가 ACCESS_DENIED로 거부하면(패스코드 없음/틀림) 다시 물어보고 그 한 번만 재시도한다.
+const PASSCODE_KEY = 'PUNCH_ACCESS_PASSCODE';
+function getStoredPasscode_() { return localStorage.getItem(PASSCODE_KEY) || ''; }
+function promptForPasscode_(message) {
+  const val = prompt(message || '🔒 현장 접속 비밀번호를 입력하세요:');
+  if (val === null) return null;
+  const trimmed = val.trim();
+  try { localStorage.setItem(PASSCODE_KEY, trimmed); } catch (e) {}
+  return trimmed;
+}
+function gasCallRaw_(action, params) {
   if (action === 'uploadPhoto') return callPost(action, params);
   return callJsonp(action, params);
+}
+async function gasCall(action, params) {
+  const passcode = getStoredPasscode_();
+  try {
+    return await gasCallRaw_(action, Object.assign({}, params, { passcode }));
+  } catch (e) {
+    if (e && String(e.message || e).includes('ACCESS_DENIED')) {
+      const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다. 다시 입력해주세요:');
+      if (newPass === null) throw e;
+      return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass }));
+    }
+    throw e;
+  }
 }
 
 // ── 사진 압축 (index.html compressImageForUpload 그대로 재사용) ──────
