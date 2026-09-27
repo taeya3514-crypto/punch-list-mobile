@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
 <title>스마트 펀치리스트 모바일 (2호)</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   /* 1호(index.html)와 동일한 팔레트를 재사용 — 같은 팀 앱이라는 시각적 일관성 유지 */
   :root {
@@ -198,6 +199,13 @@
   <select id="site-switcher" onchange="onSiteChange()" style="flex:1; background:var(--card-bg); border:1.5px solid var(--card-border); color:var(--text); padding:12px; border-radius:12px; font-weight:800; font-size:0.95rem;"></select>
   <button class="filter-trigger-btn" style="flex:0 0 auto; padding:12px 14px;" onclick="openAddSitePrompt()" title="새 현장 추가">➕현장</button>
 </div>
+
+<!-- 2026-09-27 임시 패스코드 대신 진짜 구글 로그인(선택) — 안 써도 기존 패스코드로 계속 사용 가능,
+     로그인하면 등록자가 자동으로 실제 이메일로 기록됨(책임추적). -->
+<div class="filter-trigger-row" id="gis-login-row" style="margin-bottom:10px;">
+  <button class="filter-trigger-btn" id="gis-login-btn" style="flex:1;" onclick="openGoogleSignIn()">🔐 구글 계정으로 로그인 (선택)</button>
+</div>
+<div id="gis-button-container" style="display:none; margin-bottom:10px;"></div>
 
 <div id="offline-banner"><span>📴 오프라인 — 인터넷이 연결되면 자동으로 저장됩니다</span></div>
 <div id="fail-banner" onclick="retryAllFailed()">
@@ -540,21 +548,73 @@ function promptForPasscode_(message) {
   try { localStorage.setItem(PASSCODE_KEY, trimmed); } catch (e) {}
   return trimmed;
 }
+// 2026-09-27 — 패스코드 대신(또는 함께) 진짜 구글 로그인(GIS)도 지원. 서버가 idToken을
+// 우선 검사하고 실패하면 passcode로 폴백하므로(Code.gs의 requirePasscode_ 참고), 여기선
+// 둘 다 있으면 둘 다 실어보내기만 하면 된다 — 로그인 안 한 사용자는 기존과 완전히 동일.
+const GIS_ID_TOKEN_KEY = 'PUNCH_GIS_ID_TOKEN';
+function getStoredIdToken_() { return localStorage.getItem(GIS_ID_TOKEN_KEY) || ''; }
 function gasCallRaw_(action, params) {
   if (action === 'uploadPhoto') return callPost(action, params);
   return callJsonp(action, params);
 }
 async function gasCall(action, params) {
   const passcode = getStoredPasscode_();
+  const idToken = getStoredIdToken_();
   try {
-    return await gasCallRaw_(action, Object.assign({}, params, { passcode }));
+    return await gasCallRaw_(action, Object.assign({}, params, { passcode, idToken }));
   } catch (e) {
     if (e && String(e.message || e).includes('ACCESS_DENIED')) {
-      const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다. 다시 입력해주세요:');
+      const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다(또는 로그인이 만료됐습니다). 비밀번호를 입력하거나, 위의 "구글 계정으로 로그인" 버튼을 다시 눌러주세요:');
       if (newPass === null) throw e;
-      return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass }));
+      return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass, idToken }));
     }
     throw e;
+  }
+}
+
+// ── 구글 로그인(GIS, 2026-09-27) — 선택사항, 안 써도 패스코드로 계속 사용 가능 ──────
+// Code.gs의 GIS_CLIENT_ID(punch-list-oauth 프로젝트)와 반드시 동일해야 함.
+const GIS_CLIENT_ID = '20343862397-psp91fm1c9vdshhj6l738j46uv22p9he.apps.googleusercontent.com';
+function updateGisLoginUi_() {
+  const btn = document.getElementById('gis-login-btn');
+  if (!btn) return;
+  const token = getStoredIdToken_();
+  if (token) {
+    // JWT payload만 디코드해서 이메일 표시(서명검증은 서버가 이미 함, 여기선 화면표시용)
+    let email = '';
+    try { email = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).email || ''; } catch (e) {}
+    btn.textContent = '✅ ' + (email || '로그인됨') + ' (탭하여 로그아웃)';
+    btn.onclick = signOutGoogle_;
+  } else {
+    btn.textContent = '🔐 구글 계정으로 로그인 (선택)';
+    btn.onclick = openGoogleSignIn;
+  }
+}
+function signOutGoogle_() {
+  localStorage.removeItem(GIS_ID_TOKEN_KEY);
+  updateGisLoginUi_();
+  toast('로그아웃했습니다. 이후엔 다시 패스코드로 접속합니다.');
+}
+function handleGisCredentialResponse_(response) {
+  try { localStorage.setItem(GIS_ID_TOKEN_KEY, response.credential); } catch (e) {}
+  document.getElementById('gis-button-container').style.display = 'none';
+  updateGisLoginUi_();
+  toast('✅ 구글 로그인 완료 — 이제 등록/수정 시 이 계정으로 기록됩니다.');
+  loadList(false); // 로그인 직후 한 번 새로고침(허용목록에 막 추가된 경우 등)
+}
+function initGoogleSignIn_() {
+  if (typeof google === 'undefined' || !google.accounts) { setTimeout(initGoogleSignIn_, 300); return; } // gsi/client 스크립트 로딩 대기
+  google.accounts.id.initialize({ client_id: GIS_CLIENT_ID, callback: handleGisCredentialResponse_ });
+  updateGisLoginUi_();
+}
+function openGoogleSignIn() {
+  const container = document.getElementById('gis-button-container');
+  container.style.display = 'block';
+  container.innerHTML = '';
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.renderButton(container, { theme: 'outline', size: 'large', width: 320, text: 'signin_with' });
+  } else {
+    toast('⏳ 구글 로그인 스크립트를 아직 불러오는 중입니다. 잠시 후 다시 눌러주세요.');
   }
 }
 
@@ -1357,6 +1417,7 @@ async function openAddSitePrompt() {
 
 function initApp() {
   restoreQueue();
+  initGoogleSignIn_();
   renderSiteSwitcher(); // 네트워크 응답 전, 지금 선택된 현장명만이라도 즉시 표시
   loadSiteList();
   loadCachedConfig(); // 캐시 있으면 아래 onFormTradeChange()가 바로 실데이터로 업체자동완성을 채움
