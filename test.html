@@ -191,7 +191,7 @@
     펀치리스트 2호
   </h1>
   <div class="header-btns">
-    <button class="icon-btn" onclick="loadList(true)" title="새로고침">🔄</button>
+    <button class="icon-btn" onclick="passcodePromptCanceled_ = false; loadList(true)" title="새로고침">🔄</button>
     <button class="icon-btn" onclick="exportExcel()" title="엑셀(CSV) 내보내기">📊</button>
     <button class="icon-btn" onclick="printReport()" title="인쇄">🖨️</button>
     <button class="icon-btn" onclick="openHelpSheet()" title="사용방법">❓</button>
@@ -564,6 +564,7 @@ function gasCallRaw_(action, params) {
   if (action === 'uploadPhoto') return callPost(action, params);
   return callJsonp(action, params);
 }
+let passcodePromptCanceled_ = false;
 async function gasCall(action, params) {
   const passcode = getStoredPasscode_();
   const idToken = getStoredIdToken_();
@@ -571,8 +572,14 @@ async function gasCall(action, params) {
     return await gasCallRaw_(action, Object.assign({}, params, { passcode, idToken }));
   } catch (e) {
     if (e && String(e.message || e).includes('ACCESS_DENIED')) {
+      // 첫 화면에서 목록·설정·현장목록 호출이 동시에 실패하면 비번창이 연달아 5번쯤 떠서
+      // "취소도 확인도 안 된다"처럼 보였음(2026-10-09 태야 폰). 그 사이 다른 호출이 이미
+      // 새 비번을 받았으면 그걸로 재시도만 하고, 한 번 취소했으면 🔄 누르기 전까진 다시 안 물어봄.
+      const latest = getStoredPasscode_();
+      if (latest && latest !== passcode) return await gasCallRaw_(action, Object.assign({}, params, { passcode: latest, idToken }));
+      if (passcodePromptCanceled_) throw e;
       const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다(또는 로그인이 만료됐습니다). 비밀번호를 입력하거나, 위의 "구글 계정으로 로그인" 버튼을 다시 눌러주세요:');
-      if (newPass === null) throw e;
+      if (newPass === null) { passcodePromptCanceled_ = true; throw e; }
       return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass, idToken }));
     }
     throw e;
@@ -961,6 +968,7 @@ async function loadList(showBusy) {
       break;
     } catch (e) {
       lastErr = e;
+      if (String(e.message || e).includes('ACCESS_DENIED')) break;
       if (attempt < 2) await sleep(1500 * (attempt + 1));
     }
   }
