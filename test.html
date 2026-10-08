@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<title>스마트 펀치리스트 모바일 (2호)</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  /* 1호(index.html)와 동일한 팔레트를 재사용 — 같은 팀 앱이라는 시각적 일관성 유지 */
+  :root {
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --primary: #38bdf8;
+    --primary-hover: #0284c7;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-size: 17px;
+    padding: 10px 10px calc(96px + env(safe-area-inset-bottom)) 10px;
+    min-height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    position: sticky; top: 0; z-index: 900;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  header h1 { font-size: 1.15rem; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 8px; line-height: 1.25; min-width: 0; flex-shrink: 1; }
+  header h1 img { height: 34px; width: auto; border-radius: 6px; flex-shrink: 0; }
+  /* 아이콘버튼 44px로 키운 뒤 폰(360~430)에서 제목이 두 줄로 깨지지 않게(2026-10-09) */
+  @media (max-width: 430px) { header { padding: 10px; gap: 6px; } .header-btns { gap: 4px; } header h1 { font-size: 0.9rem; gap: 5px; white-space: nowrap; } header h1 img { height: 26px; } }
+  .header-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; flex-shrink: 0; }
+  .icon-btn {
+    background: #0f172a; border: 1.5px solid var(--card-border); color: var(--text);
+    width: 44px; height: 44px; border-radius: 10px; font-size: 1.15rem;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn:active { background: #26334d; }
+
+  /* ── 동기화 상태 칩 / 배너 ── */
+  .sync-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 800; white-space: nowrap; }
+  .sync-chip-ok { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid var(--success); }
+  .sync-chip-pending { background: rgba(56,189,248,0.15); color: var(--primary); border: 1px solid var(--primary); }
+  .sync-chip-fail { background: rgba(239,68,68,0.18); color: #fca5a5; border: 1px solid var(--danger); cursor: pointer; }
+  #fail-banner {
+    display: none; align-items: center; justify-content: space-between; gap: 10px;
+    background: rgba(239,68,68,0.15); border: 1.5px solid var(--danger); color: #fecaca;
+    padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; font-weight: 800; cursor: pointer;
+  }
+  #offline-banner {
+    display: none; align-items: center; gap: 8px;
+    background: rgba(245,158,11,0.15); border: 1.5px solid var(--warning); color: #fde68a;
+    padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; font-weight: 800; font-size: 0.9rem;
+  }
+
+  /* ── 통계 바 ── */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .stat-card { background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px; padding: 10px 4px; text-align: center; cursor: pointer; }
+  .stat-card.active { border-color: var(--primary); background: rgba(2,132,199,0.15); }
+  .stat-card:active { transform: scale(0.96); }
+  .stat-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
+  .stat-val { font-size: 1.35rem; font-weight: 900; margin-top: 2px; color: var(--primary); }
+
+  /* ── 필터 트리거 ── */
+  .filter-trigger-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .filter-trigger-btn {
+    flex: 1; background: var(--card-bg); border: 1.5px solid var(--card-border); color: var(--text);
+    padding: 12px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .filter-trigger-btn.has-active { border-color: var(--primary); color: var(--primary); }
+
+  /* ── 카드 목록 ── */
+  #card-list { display: flex; flex-direction: column; gap: 10px; }
+  .p-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: 16px; padding: 14px; cursor: pointer; transition: border-color .15s; }
+  .p-card:active { border-color: var(--primary); }
+  .p-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .p-card-id { font-size: 1rem; font-weight: 900; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 7px; font-size: 0.82rem; font-weight: 800; }
+  .badge-new { background: #ef4444; color: #fff; }
+  .badge-proc { background: #f59e0b; color: #fff; }
+  .badge-done { background: #22c55e; color: #fff; }
+  .p-card-loc { font-size: 1.3rem; font-weight: 900; color: var(--text); margin-bottom: 4px; }
+  .p-card-sub { font-size: 1rem; color: var(--text-muted); font-weight: 700; }
+  .p-card-meta { font-size: 0.95rem; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; }
+  .p-card-content { font-size: 0.95rem; color: #e2e8f0; background: #0f172a; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+  .p-card-photos { display: flex; gap: 8px; }
+  .p-photo-slot { position: relative; flex: 1; height: 92px; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--card-border); background: #0b1220; }
+  .p-photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+  .p-photo-empty { display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: var(--text-muted); font-weight: 700; text-align: center; }
+  .p-photo-tag { position: absolute; left: 4px; bottom: 4px; background: rgba(15,23,42,0.75); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 5px; }
+
+  .empty-state { padding: 60px 16px; text-align: center; color: var(--text-muted); font-size: 1.1rem; font-weight: 700; }
+
+  /* ── FAB ── */
+  #fab-add {
+    position: fixed; right: max(18px, calc(50vw - 240px + 18px)); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; border-radius: 50%; background: var(--primary); color: #0f172a;
+    border: none; font-size: 1.8rem; font-weight: 900; box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center; z-index: 1200; cursor: pointer;
+  }
+  #fab-add:active { background: var(--primary-hover); transform: scale(0.95); }
+
+  /* ── 바텀시트 공통 (필터) ── */
+  .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1500; display: flex; align-items: flex-end; }
+  .sheet-overlay.hidden { display: none !important; }
+  .sheet { width: 100%; max-height: 85vh; overflow-y: auto; background: var(--card-bg); border-radius: 20px 20px 0 0; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)) 16px; border-top: 2px solid var(--card-border); }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .sheet-header h3 { font-size: 1.2rem; font-weight: 900; color: var(--primary); }
+  .sheet-body { display: flex; flex-direction: column; gap: 10px; }
+
+  select, input[type="text"], textarea {
+    width: 100%; background: #0f172a; border: 1.8px solid var(--card-border); color: var(--text);
+    padding: 13px 12px; border-radius: 10px; font-size: 1.05rem; font-weight: 700; outline: none;
+  }
+  select:focus, input:focus, textarea:focus { border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+  .btn { background: #334155; color: #fff; border: none; padding: 13px 16px; border-radius: 10px; font-weight: 800; font-size: 1rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; }
+  .btn:active { background: #475569; }
+  .btn-primary { background: var(--primary); color: #0f172a; }
+  .btn-primary:active { background: var(--primary-hover); color: #fff; }
+  .btn-ghost { background: transparent; border: 1.8px solid var(--card-border); color: var(--text-muted); }
+
+  .close-x { background: none; border: none; color: var(--text-muted); font-size: 1.8rem; cursor: pointer; line-height: 1; }
+
+  /* ── 등록/수정 모달: 화면을 꽉 채우는 풀시트 ── */
+  #punch-modal.sheet-overlay { align-items: stretch; }
+  #punch-modal .sheet { max-height: 100vh; height: 100%; border-radius: 0; display: flex; flex-direction: column; padding: 0; }
+  .modal-topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1.5px solid var(--card-border); position: sticky; top: 0; background: var(--card-bg); z-index: 5; }
+  .modal-topbar h3 { font-size: 1.15rem; font-weight: 900; color: var(--primary); }
+  .modal-scroll { flex: 1; overflow-y: auto; padding: 16px; }
+  .modal-bottombar { position: sticky; bottom: 0; background: var(--card-bg); border-top: 1.5px solid var(--card-border); padding: 12px 16px calc(14px + env(safe-area-inset-bottom)) 16px; display: flex; gap: 8px; }
+  .modal-bottombar .btn { width: auto; flex: 1; }
+
+  .field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field-group label { font-size: 1rem; font-weight: 800; color: var(--primary); }
+  .field-hint { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+
+  /* 사진 먼저 — 폼 맨 위에 큼직하게 배치 */
+  .photo-first-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .photo-slot-box { background: #0f172a; border: 2px dashed var(--card-border); border-radius: 14px; padding: 8px; text-align: center; }
+  .photo-slot-box.has-photo { border-style: solid; border-color: var(--primary); }
+  .photo-slot-label { font-size: 0.85rem; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; }
+  .photo-slot-preview { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; margin-bottom: 8px; display: none; }
+  .photo-slot-preview.show { display: block; }
+  .photo-slot-empty { height: 150px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px; }
+  .photo-cap-btn { width: 100%; padding: 12px 6px; font-size: 0.95rem; }
+  .photo-clear-btn { width: 100%; padding: 8px 6px; font-size: 0.82rem; margin-top: 6px; background: transparent; border: 1.5px solid var(--danger); color: #fca5a5; }
+  .file-input-hidden { display: none; }
+
+  .card-sync-note { font-size: 0.85rem; font-weight: 700; padding: 8px 10px; border-radius: 8px; margin-bottom: 14px; }
+  .card-sync-note.ok { background: rgba(34,197,94,0.12); color: var(--success); }
+  .card-sync-note.fail { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+  /* ── 사진 원본보기 모달 ── */
+  #img-modal { z-index: 2500; }
+  #img-modal .sheet { border-radius: 16px; margin: auto; max-width: 640px; align-self: center; padding: 14px; }
+  #img-modal-target { width: 100%; max-height: 78vh; object-fit: contain; border-radius: 10px; }
+
+  /* ── 토스트 / 로딩 ── */
+  #toast { position: fixed; left: max(12px, calc(50vw - 240px + 12px)); right: max(12px, calc(50vw - 240px + 12px)); bottom: calc(96px + env(safe-area-inset-bottom)); background: #0284c7; color: #fff; padding: 14px 18px; border-radius: 12px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 3000; display: none; }
+  #toast.warn { background: #b45309; bottom: auto; top: calc(12px + env(safe-area-inset-top)); border: 2px solid #f59e0b; }
+  .loading-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.75); display: flex; align-items: center; justify-content: center; z-index: 4000; font-size: 1.15rem; font-weight: 900; color: var(--primary); }
+  .loading-overlay.hidden { display: none !important; }
+
+  /* 사용방법 시트 */
+  #help-sheet .sheet-body { font-size: 0.95rem; line-height: 1.8; color: #e2e8f0; }
+  #help-sheet ol { padding-left: 18px; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay hidden"><div id="loading-msg">⏳ 불러오는 중...</div></div>
+<div id="toast" onclick="this.style.display='none'"></div>
+
+<header>
+  <h1>
+    <img src="https://drive.google.com/thumbnail?id=19X-FeteoZBILoDPpJ1FnuQgd4FNVtV6q&sz=w80" alt="태야">
+    펀치리스트 2호
+  </h1>
+  <div class="header-btns">
+    <button class="icon-btn" onclick="loadList(true)" title="새로고침">🔄</button>
+    <button class="icon-btn" onclick="exportExcel()" title="엑셀(CSV) 내보내기">📊</button>
+    <button class="icon-btn" onclick="printReport()" title="인쇄">🖨️</button>
+    <button class="icon-btn" onclick="openHelpSheet()" title="사용방법">❓</button>
+  </div>
+</header>
+
+<div class="filter-trigger-row" style="margin-bottom:10px;">
+  <select id="site-switcher" onchange="onSiteChange()" style="flex:1; background:var(--card-bg); border:1.5px solid var(--card-border); color:var(--text); padding:12px; border-radius:12px; font-weight:800; font-size:0.95rem;"></select>
+  <button class="filter-trigger-btn" style="flex:0 0 auto; padding:12px 14px;" onclick="openAddSitePrompt()" title="새 현장 추가">➕현장</button>
+</div>
+
+<!-- 2026-09-27 임시 패스코드 대신 진짜 구글 로그인(선택) — 안 써도 기존 패스코드로 계속 사용 가능,
+     로그인하면 등록자가 자동으로 실제 이메일로 기록됨(책임추적). -->
+<div class="filter-trigger-row" id="gis-login-row" style="margin-bottom:10px;">
+  <button class="filter-trigger-btn" id="gis-login-btn" style="flex:1;" onclick="openGoogleSignIn()">🔐 구글 계정으로 로그인 (선택)</button>
+</div>
+<div id="gis-button-container" style="display:none; margin-bottom:10px;"></div>
+
+<div id="offline-banner"><span>📴 오프라인 — 인터넷이 연결되면 자동으로 저장됩니다</span></div>
+<div id="fail-banner" onclick="retryAllFailed()">
+  <span id="fail-banner-text">⚠️ 동기화 실패</span>
+  <span class="sync-chip sync-chip-fail">전체 재시도</span>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card" data-status="" onclick="filterByStat('')">
+    <div class="stat-label">전체</div><div class="stat-val" id="st-total">0</div>
+  </div>
+  <div class="stat-card" data-status="신규" onclick="filterByStat('신규')">
+    <div class="stat-label">신규</div><div class="stat-val" id="st-new" style="color:var(--danger)">0</div>
+  </div>
+  <div class="stat-card" data-status="조치중" onclick="filterByStat('조치중')">
+    <div class="stat-label">조치중</div><div class="stat-val" id="st-proc" style="color:var(--warning)">0</div>
+  </div>
+  <div class="stat-card" data-status="완료" onclick="filterByStat('완료')">
+    <div class="stat-label">완료</div><div class="stat-val" id="st-done" style="color:var(--success)">0</div>
+  </div>
+</div>
+
+<div class="filter-trigger-row">
+  <button class="filter-trigger-btn" id="filter-trigger-btn" onclick="openFilterSheet()">🔍 필터</button>
+  <button class="filter-trigger-btn" id="sync-indicator" onclick="onSyncChipTap()">✅ 모두 동기화됨</button>
+</div>
+
+<div id="card-list"></div>
+<div id="empty" class="empty-state" style="display:none;">등록된 펀치가 없습니다.<br>오른쪽 아래 + 버튼으로 새로 등록하세요.</div>
+
+<button id="fab-add" onclick="openAddModal()">＋</button>
+
+<!-- 필터 바텀시트 -->
+<div id="filter-sheet" class="sheet-overlay hidden" onclick="if(event.target===this) closeFilterSheet()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>필터</h3><button class="close-x" onclick="closeFilterSheet()">&times;</button></div>
+    <div class="sheet-body">
+      <select id="f-gonggu" onchange="applyFilters()"><option value="">전체 공구</option></select>
+      <select id="f-dong" onchange="applyFilters()"><option value="">전체 동</option></select>
+      <select id="f-loc" onchange="applyFilters()"><option value="">전체 위치</option></select>
+      <select id="f-trade" onchange="onTradeFilterChange()"><option value="">전체 공종</option></select>
+      <select id="f-subtrade" onchange="applyFilters()"><option value="">전체 세부공종</option></select>
+      <select id="f-status" onchange="applyFilters()">
+        <option value="">전체 상태</option>
+        <option value="신규">신규</option>
+        <option value="조치중">조치중</option>
+        <option value="완료">완료</option>
+      </select>
+      <select id="f-vendor" onchange="applyFilters()"><option value="">전체 업체명</option></select>
+      <button class="btn btn-ghost" onclick="resetFilters()">필터 초기화</button>
+      <button class="btn btn-primary" onclick="closeFilterSheet()">적용하고 닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 사용방법 바텀시트 -->
+<div id="help-sheet" class="sheet-overlay hidden" onclick="if(event.target===this) closeHelpSheet()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>❓ 사용방법 (모바일 2호)</h3><button class="close-x" onclick="closeHelpSheet()">&times;</button></div>
+    <div class="sheet-body">
+      <ol>
+        <li><strong>등록</strong> — 오른쪽 아래 ＋ 버튼. 사진부터 찍고 나머지 항목은 나중에 채워도 됩니다.</li>
+        <li><strong>즉시 저장</strong> — 저장을 누르면 화면엔 바로 반영되고, 실제 서버 저장은 뒤에서 자동으로 진행됩니다.</li>
+        <li><strong>동기화 상태</strong> — 카드에 "저장 대기중/동기화중/실패" 표시가 뜨면 아직 서버에 완전히 반영되지 않은 것입니다. "실패"는 탭하면 다시 시도합니다.</li>
+        <li><strong>오프라인</strong> — 인터넷이 끊겨도 등록/수정/삭제는 계속 가능하고, 연결되면 자동으로 밀린 작업이 진행됩니다. 화면을 새로고침해도 대기 중인 내용은 유지됩니다.</li>
+        <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다. 전/후 사진이 둘 다 채워지면 상태가 자동으로 "완료"로 제안됩니다(강제 아님, 저장 전 언제든 직접 바꿀 수 있음).</li>
+        <li><strong>삭제</strong> — 상세보기 모달 하단 "🗑️ 삭제" 버튼. 실제로 지워지는 게 아니라 목록에서만 안 보이게 처리되어, 필요하면 나중에 복구할 수 있습니다.</li>
+        <li><strong>출력</strong> — 헤더의 📊 버튼은 사진 URL 포함 엑셀(CSV) 내보내기, 🖨️ 버튼은 인쇄용 표 화면을 새 창으로 열어 바로 인쇄합니다. 노트북에서 접속해도 등록·수정·삭제·출력 전부 동일하게 됩니다.</li>
+        <li><strong>등록자/수정자 기록</strong> — 처음 저장할 때 이름을 한 번 물어보고, 이후 등록/수정할 때마다 자동으로 기록됩니다(상세보기에 표시). 아래 버튼으로 언제든 바꿀 수 있습니다.</li>
+        <li><strong>1호와의 차이</strong> — 이 화면은 모바일 터치 전용 카드 화면입니다(다현장 관리 등 일부 고급 기능은 기존 1호에만 있음).</li>
+      </ol>
+      <button class="btn btn-ghost" style="margin-top:14px;" onclick="changeUserName()">👤 내 이름 변경</button>
+    </div>
+  </div>
+</div>
+
+<!-- 사진 확대보기 -->
+<div id="img-modal" class="sheet-overlay hidden" onclick="if(event.target===this) closeImgModal()">
+  <div class="sheet">
+    <div class="sheet-header"><h3 id="img-modal-title">사진</h3><button class="close-x" onclick="closeImgModal()">&times;</button></div>
+    <img id="img-modal-target" src="">
+  </div>
+</div>
+
+<!-- 등록/수정 풀시트 모달 -->
+<div id="punch-modal" class="sheet-overlay hidden">
+  <div class="sheet">
+    <div class="modal-topbar">
+      <h3 id="modal-title">➕ 펀치 신규 등록</h3>
+      <button class="close-x" onclick="closePunchModal()">&times;</button>
+    </div>
+    <div class="modal-scroll">
+      <div id="modal-sync-note"></div>
+
+      <!-- 사진 먼저 -->
+      <div class="photo-first-grid">
+        <div class="photo-slot-box" id="photo-box-before">
+          <div class="photo-slot-label">📷 시공 전</div>
+          <img class="photo-slot-preview" id="photo-preview-before" onclick="viewFullPhoto(pendingPhotoBefore || existingBeforeUrl, '시공 전 사진')">
+          <div class="photo-slot-empty" id="photo-empty-before">사진 없음</div>
+          <input type="file" id="file-before" class="file-input-hidden" accept="image/*" capture="environment" onchange="onPhotoFileChange(event,'before')">
+          <button type="button" class="btn photo-cap-btn" onclick="document.getElementById('file-before').click()">📸 촬영/선택</button>
+          <button type="button" class="btn photo-clear-btn" id="clear-before-btn" style="display:none;" onclick="clearPendingPhoto('before')">되돌리기</button>
+        </div>
+        <div class="photo-slot-box" id="photo-box-after">
+          <div class="photo-slot-label">📷 시공 후</div>
+          <img class="photo-slot-preview" id="photo-preview-after" onclick="viewFullPhoto(pendingPhotoAfter || existingAfterUrl, '시공 후 사진')">
+          <div class="photo-slot-empty" id="photo-empty-after">사진 없음</div>
+          <input type="file" id="file-after" class="file-input-hidden" accept="image/*" capture="environment" onchange="onPhotoFileChange(event,'after')">
+          <button type="button" class="btn photo-cap-btn" style="background:#166534;" onclick="document.getElementById('file-after').click()">📸 촬영/선택</button>
+          <button type="button" class="btn photo-clear-btn" id="clear-after-btn" style="display:none;" onclick="clearPendingPhoto('after')">되돌리기</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>공구</label>
+        <select id="fi-gonggu">
+          <option value="">미정 (나중에 입력)</option>
+          <option value="1공구">1공구</option><option value="2공구">2공구</option>
+          <option value="3공구">3공구</option><option value="4공구">4공구</option>
+          <option value="공동구구역">공동구구역</option><option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>동</label>
+        <select id="fi-dong"><option value="">미정 (나중에 입력)</option></select>
+      </div>
+      <div class="field-group">
+        <label>호수 / 세부위치</label>
+        <input type="text" id="fi-ho" inputmode="text" placeholder="예: 101 또는 지하1층 기계실">
+      </div>
+      <div class="field-group">
+        <label>위치 / 세부장소</label>
+        <select id="fi-loc">
+          <option value="">미정 (나중에 입력)</option>
+          <option value="거실">거실</option><option value="안방">안방</option>
+          <option value="침실1">침실1</option><option value="침실2">침실2</option>
+          <option value="주방">주방</option><option value="욕실1">욕실1</option>
+          <option value="욕실2">욕실2</option><option value="발코니">발코니</option>
+          <option value="현관">현관</option><option value="복도">복도</option>
+          <option value="공동구구역">공동구구역</option><option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>공종</label>
+        <select id="fi-trade" onchange="onFormTradeChange()">
+          <option value="">미정 (나중에 입력)</option>
+          <option value="건축">건축</option><option value="기계">기계</option>
+          <option value="전기">전기</option><option value="소방">소방</option>
+          <option value="토목">토목</option><option value="조경">조경</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>세부공종</label>
+        <select id="fi-subtrade"><option value="기타">기타</option></select>
+      </div>
+      <div class="field-group">
+        <label>하자 유형</label>
+        <select id="fi-type">
+          <option value="파손">파손</option><option value="미시공">미시공</option>
+          <option value="오시공">오시공</option><option value="오염/흠집">오염/흠집</option>
+          <option value="기능불량">기능불량</option><option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>담당 업체명</label>
+        <input type="text" id="fi-vendor" list="vendor-datalist" placeholder="목록에 없으면 새로 입력 가능">
+        <datalist id="vendor-datalist"></datalist>
+      </div>
+      <div class="field-group">
+        <label>상태</label>
+        <select id="fi-status">
+          <option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>결함 상세 내용</label>
+        <textarea id="fi-content" placeholder="나중에 채워도 됩니다"></textarea>
+      </div>
+    </div>
+    <div class="modal-bottombar">
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveFromModal()">💾 저장</button>
+      <button class="btn" id="modal-delete-btn" onclick="deleteFromModal()" style="display:none; background:transparent; border:1.5px solid var(--danger); color:var(--danger);">🗑️ 삭제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// 설정 — Code.gs는 그대로 재사용(같은 스프레드시트/같은 액션). 이 파일은
+// GAS HtmlService가 아니라 순수 정적 파일이라 google.script.run을 쓸 수
+// 없고, 모든 통신은 HTTP로만 가능하다.
+// ══════════════════════════════════════════════════════════════════
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw491M3A108qj8AQst3yxvphswCM0Dq4_9ghnlFJJoXyyS1ecRrLHl7P9wuKSWg-bLGNw/exec';
+const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1MvrSUtQuaLPRKi3j7rg-jKMlI51ACQq8n5N-RBGj5Gs/edit';
+const DEFAULT_SITE = '양주역푸르지오';
+// 2026-09-25 다현장 지원 — 1호(index.html)와 동일 패턴. 선택된 현장은 localStorage에 유지되고,
+// 동기화 큐(오프라인 작업 대기열)는 현장을 섞으면 안 되므로 큐 저장키에도 현장명을 포함시킨다.
+const CURRENT_SITE_KEY = 'PUNCH_CURRENT_SITE';
+let currentSite = localStorage.getItem(CURRENT_SITE_KEY) || DEFAULT_SITE;
+let siteList = [];
+const STORAGE_KEY = 'punchlist_mobile_queue_v1';
+const DEFAULT_DONG_LIST = ['101동','102동','103동','104동','105동','106동','107동','108동','지하1층','지하2층','지하3층','상가동'];
+const TRADES = {
+  '건축': ['창호','조적','미장','방수','타일','수납가구','도배','마루','기타'],
+  '기계': ['위생','배관','덕트','보일러','기타'],
+  '전기': ['조명','배선','수전반','기타'],
+  '소방': ['스프링클러','감지기','기타'],
+  '토목': ['포장','배수로','기타'],
+  '조경': ['식재','시설물','기타']
+};
+
+// ── 상태 ──────────────────────────────────────────────────────────
+// var로 선언: 최상위 let/const는 window의 속성이 되지 않아 Node+jsdom 검증
+// 하네스가 window.queue 등으로 내부 상태를 들여다볼 수 없다 — 실제 동작은
+// var든 let이든 동일하고, 테스트 가능성을 위해 var를 쓴다.
+var serverList = [];      // 마지막으로 받은 서버 데이터(getPunchList)
+var queue = [];           // 대기중인 저장 작업(add/update). localStorage에 그대로 영속화
+var filteredList = [];
+var isProcessingQueue = false;
+var SERVER_CONFIG_DATA = null;
+
+var isAddMode = false;
+var currentEditId = null;
+var currentEditTaskQid = null;   // '실패' 상태 작업을 다시 여는 경우, 새 작업을 만들지 않고 기존 작업을 고쳐씀
+var pendingPhotoBefore = null;   // 이번 모달 세션에서 새로 찍은 사진(base64 dataURL), 저장 전까지는 서버에 안 올라감
+var pendingPhotoAfter = null;
+var existingBeforeUrl = '';
+var existingAfterUrl = '';
+
+// 테스트 하네스(Node+jsdom)가 DOMContentLoaded 자동 초기화를 막고 목(mock)을
+// 먼저 심은 뒤 initApp()을 수동 호출할 수 있게 하는 최소한의 훅.
+// 실제 브라우저 사용에는 전혀 영향 없음(플래그가 안 켜져 있으면 평소처럼 자동 초기화).
+window.__DISABLE_AUTO_INIT__ = window.__DISABLE_AUTO_INIT__ || false;
+
+// ── 유틸 ──────────────────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+// esc()는 HTML 텍스트/속성용이라 작은따옴표(')는 안 건드린다 — onclick="...'${값}'..." 처럼
+// HTML 속성 안에 홑따옴표로 감싼 JS 문자열 인자로 값을 넣는 자리에서는 esc()만으로 부족하다
+// (호수/위치/업체명 등 자유입력 필드에 아포스트로피가 들어오면 그 자리에서 JS 문법이 깨짐).
+// 반드시 esc()가 처리 못하는 원본 값을 받아, 역슬래시·홑따옴표부터 이스케이프한 뒤 나머지는
+// esc()와 동일하게 처리한다.
+function escJsAttr(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function v(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+// 등록자/수정자 기록(2026-09-17 신설) — 로그인이 없어 서버가 "누가"인지 알 방법이
+// 없어 자기신고 방식으로 기기별 이름을 localStorage에 저장해 저장 시 실어 보낸다.
+// 2026-09-19: 첫 저장 시 강제로 물어보던 prompt()를 제거 — 이름을 등록하고 싶은
+// 사람만 "👤 내 이름 변경" 버튼으로 자발적으로 설정. 미설정이면 빈 값 그대로 전송
+// (서버는 빈 값을 정상 처리함).
+const USER_NAME_KEY = 'PUNCH_USER_NAME';
+function getUserName() {
+  return localStorage.getItem(USER_NAME_KEY) || '';
+}
+function changeUserName() {
+  const cur = localStorage.getItem(USER_NAME_KEY) || '';
+  const next = prompt('이름을 입력해주세요:', cur);
+  if (next === null) return; // 취소
+  try { localStorage.setItem(USER_NAME_KEY, next.trim()); } catch (e) { console.warn('이름 저장 실패:', e); }
+  toast('✅ 이름이 "' + (next.trim() || '(미입력)') + '"(으)로 저장되었습니다.');
+}
+function uid() { return 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+function nowKST() {
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function toast(msg, ms = 3500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  // 경고(⚠️/❌)는 눈에 띄는 색+화면 위쪽에 띄워 등록창 입력칸을 가리지 않게, 더 오래 표시(2026-10-09)
+  const warn = /^(⚠️|❌|🔒)/.test(msg);
+  t.classList.toggle('warn', warn);
+  if (warn && ms < 8000) ms = 8000;
+  t.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.style.display = 'none'; }, ms);
+}
+function busy(show, msg) {
+  const el = document.getElementById('loading');
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+  el.classList.toggle('hidden', !show);
+}
+
+// ── 서버 통신 ─────────────────────────────────────────────────────
+// getPunchList/getDropdownConfig/addPunch/updatePunch: JSONP(GET, <script> 태그)로 호출.
+// handleApiRequest가 callback 파라미터를 지원해서 CORS 없이 외부 정적 페이지에서도 호출 가능.
+// uploadPhoto만 예외: 압축해도 수백KB인 base64 사진을 GET 쿼리스트링에 실으면 URL 길이
+// 한도를 넘길 위험이 커서(구글 프론트엔드 서버가 보통 URL을 8KB 안팎으로 제한),
+// 그 액션만 fetch POST(text/plain body, 프리플라이트 없이 보내는 "simple request")로
+// 대체한다. Code.gs의 doPost()/handleApiRequest()는 이미 postData.contents를 JSON으로
+// 파싱하도록 되어 있어 서버 코드 변경 없이 그대로 받아진다. (이 부분은 실기기 검증 전이라
+// 100% 확정은 아님 — 최종 보고에 명시)
+function callJsonp(action, params) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'cb_' + Math.random().toString(36).substring(2);
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('통신 시간 초과 (JSONP)')); }, 15000);
+    function cleanup() {
+      clearTimeout(timeout);
+      // 타임아웃/에러로 먼저 정리된 뒤에도 브라우저가 이미 내려받던 스크립트를 계속 실행해
+      // 뒤늦게 콜백을 부르는 경우가 있다(느린 응답). delete로 완전히 없애면 그 시점에
+      // "cb_xxx is not defined" 오류가 나므로, 조용히 무시하는 빈 함수로 남겨둔다.
+      window[callbackName] = function() {};
+      if (script && script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = function(response) {
+      cleanup();
+      if (response && response.ok) resolve(response.data);
+      else reject(new Error(response ? response.error : '알 수 없는 응답'));
+    };
+    const paramStr = encodeURIComponent(JSON.stringify(params || {}));
+    script.src = `${WEB_APP_URL}?action=${encodeURIComponent(action)}&params=${paramStr}&callback=${callbackName}&_ts=${Date.now()}`;
+    script.onerror = function() { cleanup(); reject(new Error('JSONP 스크립트 로드 실패')); };
+    document.body.appendChild(script);
+  });
+}
+
+async function callPost(action, params) {
+  const res = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action, params: params || {} }) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json || json.ok === false) throw new Error((json && json.error) || '알 수 없는 서버 오류');
+  return json.data;
+}
+
+// 2026-09-26 임시 접근제어(패스코드 게이트) — 완전한 계정기반 인증은 아니지만 "URL만 알면
+// 로그인없이 CRUD 가능"이라는 가장 큰 리스크를 막는다. 매 호출에 패스코드를 실어보내고,
+// 서버가 ACCESS_DENIED로 거부하면(패스코드 없음/틀림) 다시 물어보고 그 한 번만 재시도한다.
+const PASSCODE_KEY = 'PUNCH_ACCESS_PASSCODE';
+function getStoredPasscode_() { return localStorage.getItem(PASSCODE_KEY) || ''; }
+function promptForPasscode_(message) {
+  const val = prompt(message || '🔒 현장 접속 비밀번호를 입력하세요:');
+  if (val === null) return null;
+  const trimmed = val.trim();
+  try { localStorage.setItem(PASSCODE_KEY, trimmed); } catch (e) {}
+  return trimmed;
+}
+// 2026-09-27 — 패스코드 대신(또는 함께) 진짜 구글 로그인(GIS)도 지원. 서버가 idToken을
+// 우선 검사하고 실패하면 passcode로 폴백하므로(Code.gs의 requirePasscode_ 참고), 여기선
+// 둘 다 있으면 둘 다 실어보내기만 하면 된다 — 로그인 안 한 사용자는 기존과 완전히 동일.
+const GIS_ID_TOKEN_KEY = 'PUNCH_GIS_ID_TOKEN';
+function getStoredIdToken_() { return localStorage.getItem(GIS_ID_TOKEN_KEY) || ''; }
+function gasCallRaw_(action, params) {
+  if (action === 'uploadPhoto') return callPost(action, params);
+  return callJsonp(action, params);
+}
+async function gasCall(action, params) {
+  const passcode = getStoredPasscode_();
+  const idToken = getStoredIdToken_();
+  try {
+    return await gasCallRaw_(action, Object.assign({}, params, { passcode, idToken }));
+  } catch (e) {
+    if (e && String(e.message || e).includes('ACCESS_DENIED')) {
+      const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다(또는 로그인이 만료됐습니다). 비밀번호를 입력하거나, 위의 "구글 계정으로 로그인" 버튼을 다시 눌러주세요:');
+      if (newPass === null) throw e;
+      return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass, idToken }));
+    }
+    throw e;
+  }
+}
+
+// ── 구글 로그인(GIS, 2026-09-27) — 선택사항, 안 써도 패스코드로 계속 사용 가능 ──────
+// Code.gs의 GIS_CLIENT_ID(punch-list-oauth 프로젝트)와 반드시 동일해야 함.
+const GIS_CLIENT_ID = '20343862397-psp91fm1c9vdshhj6l738j46uv22p9he.apps.googleusercontent.com';
+function updateGisLoginUi_() {
+  const btn = document.getElementById('gis-login-btn');
+  if (!btn) return;
+  const token = getStoredIdToken_();
+  if (token) {
+    // JWT payload만 디코드해서 이메일 표시(서명검증은 서버가 이미 함, 여기선 화면표시용)
+    let email = '';
+    try { email = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).email || ''; } catch (e) {}
+    btn.textContent = '✅ ' + (email || '로그인됨') + ' (탭하여 로그아웃)';
+    btn.onclick = signOutGoogle_;
+  } else {
+    btn.textContent = '🔐 구글 계정으로 로그인 (선택)';
+    btn.onclick = openGoogleSignIn;
+  }
+}
+function signOutGoogle_() {
+  localStorage.removeItem(GIS_ID_TOKEN_KEY);
+  updateGisLoginUi_();
+  toast('로그아웃했습니다. 이후엔 다시 패스코드로 접속합니다.');
+}
+function handleGisCredentialResponse_(response) {
+  try { localStorage.setItem(GIS_ID_TOKEN_KEY, response.credential); } catch (e) {}
+  document.getElementById('gis-button-container').style.display = 'none';
+  updateGisLoginUi_();
+  toast('✅ 구글 로그인 완료 — 이제 등록/수정 시 이 계정으로 기록됩니다.');
+  loadList(false); // 로그인 직후 한 번 새로고침(허용목록에 막 추가된 경우 등)
+}
+function initGoogleSignIn_() {
+  if (typeof google === 'undefined' || !google.accounts) { setTimeout(initGoogleSignIn_, 300); return; } // gsi/client 스크립트 로딩 대기
+  google.accounts.id.initialize({ client_id: GIS_CLIENT_ID, callback: handleGisCredentialResponse_ });
+  updateGisLoginUi_();
+}
+function openGoogleSignIn() {
+  const container = document.getElementById('gis-button-container');
+  container.style.display = 'block';
+  container.innerHTML = '';
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.renderButton(container, { theme: 'outline', size: 'large', width: 320, text: 'signin_with' });
+  } else {
+    toast('⏳ 구글 로그인 스크립트를 아직 불러오는 중입니다. 잠시 후 다시 눌러주세요.');
+  }
+}
+
+// ── 사진 압축 (index.html compressImageForUpload 그대로 재사용) ──────
+async function compressImageForUpload(file, maxDim = 2200, quality = 0.92) {
+  try {
+    let bitmap;
+    if (window.createImageBitmap) {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } else {
+      bitmap = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+    const srcW = bitmap.width, srcH = bitmap.height;
+    const scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+    const w = Math.max(1, Math.round(srcW * scale));
+    const h = Math.max(1, Math.round(srcH * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    return blob || null;
+  } catch (e) {
+    console.warn('사진 압축 실패, 원본 그대로 업로드합니다:', e);
+    return null;
+  }
+}
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 낙관적 UI + 동기화 큐
+//   저장을 누르면: ① 화면에 즉시 반영(로컬) → ② 큐에 작업 등록 → ③ 백그라운드로
+//   순차 처리 → ④ 성공하면 조용히 확정, 실패하면 카드에 "실패" 배지를 남겨서
+//   눈에 보이게 하고 자동 재시도(최대 3회) 후에도 실패하면 수동 재시도 대기.
+//   큐는 매 변경마다 localStorage에 저장해서 새로고침해도 대기 작업이 사라지지 않는다.
+// ══════════════════════════════════════════════════════════════════
+// 오프라인 상태에서 사진 포함 항목을 여러 건 등록하면(이 기능이 원래 노리는 핵심
+// 시나리오) 큐 전체가 localStorage에 그대로 직렬화되는데, 압축된 사진(실측
+// 300~850KB)이 base64로 커지면서 전/후 사진 포함 4~5건만 쌓여도 흔한 브라우저
+// 기본 용량(5MB)을 넘긴다(시뮬레이션으로 확인: 4건째에서 5MB 초과). 예전엔 이
+// 실패를 console.warn만 하고 조용히 넘어갔는데, 이러면 실제로는 저장 안 된 채
+// 화면엔 "저장 대기중"으로 보이다가 새로고침하면 그 항목들이 통째로 사라진다 —
+// "실패를 절대 숨기지 않는다"는 이 앱의 핵심 설계 원칙(2026-09-14) 위반. 이제는
+// 눈에 보이게 경고한다(같은 문제가 계속되는 동안 토스트가 반복되지 않도록 1회만).
+var _storageQuotaWarned = false;
+function persistQueue() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    _storageQuotaWarned = false;
+  } catch (e) {
+    console.warn('큐 저장 실패(localStorage 사용 불가 또는 용량초과):', e);
+    if (!_storageQuotaWarned) {
+      _storageQuotaWarned = true;
+      toast('⚠️ 저장 공간 부족 — 새로고침하면 방금 등록한 내용이 사라질 수 있습니다. 동기화가 끝날 때까지 이 화면을 유지해주세요.', 8000);
+    }
+  }
+  updateSyncIndicator();
+}
+function restoreQueue() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      queue = JSON.parse(raw) || [];
+      // 새로고침 직전 'syncing' 중이던 작업은 실제로는 중단된 것 — 재시작 시 다시 대기열로
+      queue.forEach(t => { if (t.status === 'syncing') t.status = 'pending'; });
+    }
+  } catch (e) { console.warn('큐 복원 실패:', e); queue = []; }
+}
+
+function findQueueTaskForLocalId(id) {
+  return queue.find(t => String(t.localId) === String(id));
+}
+function removeTaskFromQueue(qid) {
+  queue = queue.filter(t => t.qid !== qid);
+}
+
+// siteName은 생성 시점의 currentSite를 그대로 굳혀서 담는다(2026-09-25) — 큐 작업이
+// 백그라운드에서 나중에 실행될 때 사용자가 이미 다른 현장으로 전환했더라도, 이 작업은
+// 항상 등록될 당시의 현장으로 정확히 전송돼야 한다(실행시점의 currentSite를 쓰면 안 됨).
+function enqueueAdd(fields, photos) {
+  const task = {
+    qid: uid(), kind: 'add', localId: uid(), siteName: currentSite,
+    fields, photos: photos || { before:null, after:null },
+    uploadedUrls: { before:null, after:null },
+    status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
+  };
+  queue.push(task);
+  persistQueue();
+  return task;
+}
+function enqueueUpdate(id, fields, photos) {
+  const task = {
+    qid: uid(), kind: 'update', localId: String(id), siteName: currentSite,
+    fields, photos: photos || { before:null, after:null },
+    uploadedUrls: { before:null, after:null },
+    status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
+  };
+  queue.push(task);
+  persistQueue();
+  return task;
+}
+function enqueueDelete(id) {
+  const task = {
+    qid: uid(), kind: 'delete', localId: String(id), siteName: currentSite,
+    fields: null, photos: { before:null, after:null }, uploadedUrls: { before:null, after:null },
+    status: 'pending', attempts: 0, lastError: '', createdAt: Date.now()
+  };
+  queue.push(task);
+  persistQueue();
+  return task;
+}
+
+// task.siteName(등록 당시 현장, currentSite 아님)을 모든 gasCall에 명시적으로 실어 보낸다 —
+// 백그라운드 큐 처리 중 사용자가 이미 다른 현장으로 화면을 전환했을 수 있어(2026-09-25),
+// 그 시점의 currentSite를 쓰면 엉뚱한 현장 스프레드시트에 잘못 쓰일 위험이 있다.
+// serverList(현재 화면에 보이는 목록)는 그 작업이 "지금 보고 있는 현장" 것일 때만 반영한다 —
+// 다른 현장 작업이 백그라운드에서 끝나서 지금 화면 데이터를 오염시키면 안 되기 때문.
+async function executeTask(task) {
+  if (task.kind === 'delete') {
+    await gasCall('deletePunch', { id: task.localId, siteName: task.siteName });
+    if (task.siteName === currentSite) serverList = serverList.filter(i => String(i['ID']) !== String(task.localId));
+    return;
+  }
+  // 사진이 있으면 먼저 업로드(재시도 시 이미 업로드된 것은 건너뜀 — uploadedUrls에 남아있음).
+  // 전/후 두 장 다 있는 경우(완료 자동제안 케이스, 실사용에서 흔함) 독립적인 두 서버호출을
+  // 순차로 기다리면 동기화 시간이 거의 2배가 된다 — Promise.all로 병렬 처리(2026-09-25,
+  // sim_photo_upload_parallel.js로 50% 절감 확인). 하나가 실패해도 다른 하나의 uploadedUrls는
+  // 그대로 기록되어(async 함수 자체는 취소되지 않음) 재시도 시 중복 업로드하지 않는다.
+  const pendingTypes = ['before','after'].filter(type => task.photos[type] && !task.uploadedUrls[type]);
+  if (pendingTypes.length) {
+    await Promise.all(pendingTypes.map(async type => {
+      const res = await gasCall('uploadPhoto', {
+        base64Data: task.photos[type],
+        punchId: task.kind === 'add' ? 'New' : task.localId,
+        photoType: type,
+        siteName: task.siteName
+      });
+      if (!res || res.ok === false) throw new Error((res && res.error) || '사진 업로드 실패');
+      task.uploadedUrls[type] = res.url;
+    }));
+    persistQueue();
+  }
+
+  const data = { ...task.fields };
+  if (task.uploadedUrls.before) { data['시공전사진URL'] = task.uploadedUrls.before; data['사진URL'] = task.uploadedUrls.before; }
+  if (task.uploadedUrls.after) { data['시공후사진URL'] = task.uploadedUrls.after; }
+
+  if (task.kind === 'add') {
+    const res = await gasCall('addPunch', { ...data, siteName: task.siteName });
+    if (!res || !res.id) throw new Error('등록 실패: 서버 응답에 ID가 없습니다.');
+    if (task.siteName === currentSite) {
+      const item = { ...data, 'ID': res.id, '등록일': nowKST(), '상태': data['상태'] || '신규' };
+      serverList.push(item);
+    }
+  } else {
+    await gasCall('updatePunch', { id: task.localId, data, siteName: task.siteName });
+    if (task.siteName === currentSite) {
+      const idx = serverList.findIndex(i => String(i['ID']) === String(task.localId));
+      if (idx !== -1) serverList[idx] = { ...serverList[idx], ...data };
+      else serverList.push({ ...data, 'ID': task.localId });
+    }
+  }
+}
+
+async function runQueue() {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+  try {
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      const snapshot = queue.slice();
+      for (const task of snapshot) {
+        if (task.status !== 'pending') continue;
+        task.status = 'syncing';
+        applyFilters();
+        updateSyncIndicator();
+        try {
+          await executeTask(task);
+          removeTaskFromQueue(task.qid);
+        } catch (err) {
+          task.attempts = (task.attempts || 0) + 1;
+          task.lastError = (err && err.message) ? err.message : String(err);
+          task.status = 'failed';
+          console.warn('큐 작업 실패:', task, err);
+          if (task.attempts < 3) {
+            const delay = [3000, 8000, 20000][task.attempts - 1] || 20000;
+            setTimeout(() => {
+              const t = queue.find(x => x.qid === task.qid);
+              if (t && t.status === 'failed') { t.status = 'pending'; persistQueue(); runQueue(); }
+            }, delay);
+          }
+        }
+        persistQueue();
+        progressed = true;
+      }
+    }
+  } finally {
+    isProcessingQueue = false;
+    applyFilters();
+    updateSyncIndicator();
+  }
+}
+
+function retryTask(qid) {
+  const t = queue.find(x => x.qid === qid);
+  if (!t) return;
+  t.status = 'pending'; t.attempts = 0; t.lastError = '';
+  persistQueue(); applyFilters(); runQueue();
+}
+function retryAllFailed() {
+  let any = false;
+  queue.forEach(t => { if (t.status === 'failed' && taskBelongsToCurrentSite_(t)) { t.status = 'pending'; t.attempts = 0; t.lastError = ''; any = true; } });
+  if (!any) return;
+  persistQueue(); applyFilters(); runQueue();
+}
+function onSyncChipTap() {
+  const failed = queue.filter(t => t.status === 'failed' && taskBelongsToCurrentSite_(t)).length;
+  if (failed > 0) { retryAllFailed(); return; }
+  loadList(true);
+}
+
+// 표시되는 배지/배너는 지금 보고 있는 현장 것만 센다 — 다른 현장 배경동기화는 계속 돌지만
+// 화면엔 안 보여야 사용자가 "지금 이 현장" 상태로 오해하지 않는다(2026-09-25).
+function updateSyncIndicator() {
+  const siteQueue = queue.filter(taskBelongsToCurrentSite_);
+  const pending = siteQueue.filter(t => t.status === 'pending' || t.status === 'syncing').length;
+  const failed = siteQueue.filter(t => t.status === 'failed').length;
+  const el = document.getElementById('sync-indicator');
+  const banner = document.getElementById('fail-banner');
+  if (!el) return;
+  if (failed > 0) {
+    el.className = 'filter-trigger-btn has-active';
+    el.textContent = `⚠️ 동기화 실패 ${failed}건 · 탭하여 재시도`;
+    banner.style.display = 'flex';
+    document.getElementById('fail-banner-text').textContent = `⚠️ 동기화 실패 ${failed}건`;
+  } else if (pending > 0) {
+    el.className = 'filter-trigger-btn';
+    el.textContent = `🔄 동기화 중 ${pending}건`;
+    banner.style.display = 'none';
+  } else {
+    el.className = 'filter-trigger-btn';
+    el.textContent = `✅ 모두 동기화됨`;
+    banner.style.display = 'none';
+  }
+}
+
+// 큐에는 다른 현장 작업도 섞여 있을 수 있어(백그라운드 동기화 중 현장전환, 2026-09-25) 화면
+// 렌더링에는 지금 보고 있는 현장 것만 반영한다. siteName이 없는 옛 큐 항목(이 기능 이전에
+// 저장된 것)은 DEFAULT_SITE로 간주해 하위호환한다.
+function taskBelongsToCurrentSite_(task) {
+  return (task.siteName || DEFAULT_SITE) === currentSite;
+}
+
+// ── 서버 데이터 + 큐를 합쳐서 화면에 그릴 목록 만들기 ──────────────
+function getRenderList() {
+  const byId = new Map();
+  serverList.forEach(it => byId.set(String(it['ID']), { ...it, _sync: 'synced', _syncError: '', _qid: null }));
+
+  // 삭제 대기/처리중/실패 항목은 성공여부와 무관하게 즉시 화면에서 숨긴다(사용자가
+  // 이미 삭제를 확정한 것이므로 재시공하는 게 아님). 실패하면 카드가 아니라
+  // 상단 동기화 실패 배너의 "전체 재시도"로만 다시 시도된다(deleteFromModal이
+  // 큐에 넣기 전 같은 ID의 다른 대기작업을 먼저 취소하므로 update 오버레이와
+  // 충돌할 일은 없다).
+  queue.forEach(task => { if (task.kind === 'delete' && taskBelongsToCurrentSite_(task)) byId.delete(String(task.localId)); });
+
+  queue.forEach(task => {
+    if (task.kind !== 'update' || !taskBelongsToCurrentSite_(task)) return;
+    const base = byId.get(String(task.localId)) || { 'ID': task.localId };
+    const merged = { ...base, ...task.fields };
+    if (task.photos.before) merged['시공전사진URL'] = task.uploadedUrls.before || task.photos.before;
+    if (task.photos.after) merged['시공후사진URL'] = task.uploadedUrls.after || task.photos.after;
+    merged._sync = task.status; merged._syncError = task.lastError; merged._qid = task.qid;
+    byId.set(String(task.localId), merged);
+  });
+
+  const pendingNew = [];
+  queue.forEach(task => {
+    if (task.kind !== 'add' || !taskBelongsToCurrentSite_(task)) return;
+    const merged = { ...task.fields, 'ID': task.localId, _tempNew: true };
+    if (task.photos.before) merged['시공전사진URL'] = task.uploadedUrls.before || task.photos.before;
+    if (task.photos.after) merged['시공후사진URL'] = task.uploadedUrls.after || task.photos.after;
+    merged._sync = task.status; merged._syncError = task.lastError; merged._qid = task.qid;
+    pendingNew.push(merged);
+  });
+
+  const serverArr = Array.from(byId.values()).reverse(); // 최근 등록이 위로 오게
+  return [...pendingNew.reverse(), ...serverArr];
+}
+
+// ── 목록 로딩 / 설정 로딩 ─────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── 목록 로컬 캐시 ────────────────────────────────────────────────
+// 앱시트처럼 "열자마자 뭔가 보이는" 체감을 내기 위한 것 — 최초 로딩 스피너를
+// 없애는 게 아니라, 직전 세션에서 성공적으로 받아온 목록을 먼저 화면에 깔아두고
+// (실제 서버 상태와 약간 다를 수 있음) 그 사이에 진짜 최신 데이터를 조용히
+// 백그라운드로 받아와 갱신한다. 최초 접속(캐시 없음)은 기존과 동일하게 로딩 표시.
+// 캐시키에 현장명을 포함 — 현장 전환 시 이전 현장 캐시가 잘못 보이는 것 방지(2026-09-25)
+function listCacheKey_() { return 'PUNCH_LIST_CACHE_V1_' + currentSite; }
+function loadCachedList() {
+  try {
+    const raw = localStorage.getItem(listCacheKey_());
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) { serverList = arr; return true; } }
+  } catch (e) { console.warn('목록 캐시 복원 실패:', e); }
+  return false;
+}
+function saveCachedList() {
+  try { localStorage.setItem(listCacheKey_(), JSON.stringify(serverList)); localStorage.setItem(listCacheKey_() + '_AT', new Date().toISOString()); }
+  catch (e) { console.warn('목록 캐시 저장 실패(localStorage 용량초과 등):', e); }
+}
+
+let serverLoadFailed = false;
+async function loadList(showBusy) {
+  if (showBusy) busy(true, '⏳ 펀치 데이터 불러오는 중...');
+  // 모바일 네트워크(특히 현장)에서 JSONP 스크립트 로드가 간헐적으로 실패하는 사례가
+  // 있어(2026-09-15 실사용 리포트), 바로 포기하지 않고 짧은 대기 후 최대 2회 더 시도한다.
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await gasCall('getPunchList', { siteName: currentSite });
+      if (Array.isArray(res)) { serverList = res; saveCachedList(); }
+      lastErr = null;
+      serverLoadFailed = false;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) await sleep(1500 * (attempt + 1));
+    }
+  }
+  if (lastErr) {
+    serverLoadFailed = String(lastErr.message || lastErr).includes('ACCESS_DENIED') ? 'denied' : true;
+    if (serverLoadFailed === 'denied' && !serverList.length) {
+      toast('🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다 — 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.');
+    } else if (!serverList.length) {
+      toast('⚠️ 서버에 연결하지 못했습니다 — 잠시 후 🔄 새로고침을 눌러주세요 (' + (lastErr.message || lastErr) + ')');
+    } else {
+      let at = '';
+      try { const v = localStorage.getItem(listCacheKey_() + '_AT'); if (v) at = new Date(v).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+      toast((serverLoadFailed === 'denied' ? '🔒 비밀번호 확인 필요' : '⚠️ 서버 연결 안 됨') + ' — 마지막으로 받은 목록' + (at ? '(' + at + ')' : '') + '을 보여드립니다. 최신이 아닐 수 있어요.');
+    }
+  }
+  updateFiltersOptions();
+  applyFilters();
+  busy(false);
+}
+// 목록(getPunchList)은 9/16에 로컬 캐시를 붙여 재접속 시 0ms로 뜨는데, 설정(동/업체
+// 드롭다운)은 그 패턴이 이식되지 않아 재접속 때도 매번 서버 응답(실측 1.6~2.5초)을
+// 그대로 기다렸다 — 그 사이 "+ 신규등록"을 누르면 업체명 자동완성이 빈 채로 뜨는 창이
+// 있었음(sim_config_cache_gap.js로 확인). 동일한 캐시우선 패턴을 적용한다.
+function configCacheKey_() { return 'PUNCH_CONFIG_CACHE_V1_' + currentSite; }
+function loadCachedConfig() {
+  try {
+    const raw = localStorage.getItem(configCacheKey_());
+    if (raw) { const obj = JSON.parse(raw); if (obj && obj.vendorList) { SERVER_CONFIG_DATA = obj; return true; } }
+  } catch (e) { console.warn('설정 캐시 복원 실패:', e); }
+  return false;
+}
+function saveCachedConfig() {
+  try { localStorage.setItem(configCacheKey_(), JSON.stringify(SERVER_CONFIG_DATA)); }
+  catch (e) { console.warn('설정 캐시 저장 실패(localStorage 용량초과 등):', e); }
+}
+async function loadConfig() {
+  try {
+    const res = await gasCall('getDropdownConfig', { siteName: currentSite });
+    if (res) { SERVER_CONFIG_DATA = res; populateDongOptions(); populateVendorDatalist(); saveCachedConfig(); }
+  } catch (e) { console.warn('설정 로딩 실패, 기본값 사용:', e); }
+}
+function populateDongOptions() {
+  const list = (SERVER_CONFIG_DATA && SERVER_CONFIG_DATA.dongList && SERVER_CONFIG_DATA.dongList.length) ? SERVER_CONFIG_DATA.dongList : DEFAULT_DONG_LIST;
+  ['fi-dong'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">미정 (나중에 입력)</option>' + list.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+    sel.value = cur;
+  });
+}
+function populateVendorDatalist(tradeFilter) {
+  const list = (SERVER_CONFIG_DATA && SERVER_CONFIG_DATA.vendorList) || [];
+  const map = (SERVER_CONFIG_DATA && SERVER_CONFIG_DATA.vendorTradeMap) || {};
+  const dl = document.getElementById('vendor-datalist');
+  if (!dl) return;
+  const filtered = tradeFilter ? list.filter(name => (map[name]||[]).includes(tradeFilter)) : list;
+  dl.innerHTML = filtered.map(n => `<option value="${esc(n)}">`).join('');
+}
+
+// ── 필터 ──────────────────────────────────────────────────────────
+function updateFiltersOptions() {
+  const list = getRenderList();
+  updateSelectOptions('f-gonggu', list.map(i => i['공구']), '전체 공구');
+  updateSelectOptions('f-dong', list.map(i => i['동']), '전체 동');
+  updateSelectOptions('f-loc', list.map(i => i['위치']), '전체 위치');
+  updateSelectOptions('f-trade', list.map(i => i['공종']), '전체 공종');
+  updateSelectOptions('f-subtrade', list.map(i => i['세부공종']), '전체 세부공종');
+  updateSelectOptions('f-vendor', list.map(i => i['업체명']), '전체 업체명');
+}
+function updateSelectOptions(id, values, allLabel) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const cur = sel.value;
+  const uniq = [...new Set(values.filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">${allLabel}</option>` + uniq.map(v => `<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(v)}</option>`).join('');
+  sel.value = cur;
+}
+function onTradeFilterChange() { applyFilters(); }
+function resetFilters() {
+  ['f-gonggu','f-dong','f-loc','f-trade','f-subtrade','f-status','f-vendor'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  applyFilters();
+}
+function filterByStat(status) {
+  const sel = document.getElementById('f-status');
+  sel.value = (sel.value === status) ? '' : status;
+  applyFilters();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function applyFilters() {
+  const list = getRenderList();
+  const gonggu = v('f-gonggu'), dong = v('f-dong'), loc = v('f-loc'), trade = v('f-trade'),
+        subtrade = v('f-subtrade'), status = v('f-status'), vendor = v('f-vendor');
+
+  filteredList = list.filter(it => {
+    if (gonggu && String(it['공구']||'') !== gonggu) return false;
+    if (dong && String(it['동']||'') !== dong) return false;
+    if (loc && String(it['위치']||'') !== loc) return false;
+    if (trade && String(it['공종']||'') !== trade) return false;
+    if (subtrade && String(it['세부공종']||'') !== subtrade) return false;
+    if (status && String(it['상태']||'') !== status) return false;
+    if (vendor && String(it['업체명']||'') !== vendor) return false;
+    return true;
+  });
+
+  updateStats(list);
+  renderCards(filteredList);
+  updateSyncIndicator();
+
+  const filterBtn = document.getElementById('filter-trigger-btn');
+  const anyFilterActive = !!(gonggu||dong||loc||trade||subtrade||status||vendor);
+  if (filterBtn) filterBtn.classList.toggle('has-active', anyFilterActive);
+}
+function updateStats(list) {
+  document.getElementById('st-total').textContent = list.length;
+  document.getElementById('st-new').textContent  = list.filter(i => (i['상태']||'신규') === '신규').length;
+  document.getElementById('st-proc').textContent = list.filter(i => (i['상태']||'') === '조치중').length;
+  document.getElementById('st-done').textContent = list.filter(i => (i['상태']||'') === '완료').length;
+  const curStatus = v('f-status');
+  document.querySelectorAll('.stat-card').forEach(c => c.classList.toggle('active', c.dataset.status === curStatus));
+}
+
+// ── 카드 렌더링 ───────────────────────────────────────────────────
+function renderCards(items) {
+  const wrap = document.getElementById('card-list');
+  const empty = document.getElementById('empty');
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '';
+    // 서버 실패로 목록 자체를 못 받은 경우, "펀치 없음"으로 보이면 데이터가 날아간 걸로 오해함(2026-10-09)
+    empty.innerHTML = (serverLoadFailed === 'denied' && !serverList.length)
+      ? '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.'
+      : (serverLoadFailed && !serverList.length)
+      ? '⚠️ 서버에 연결하지 못해 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 잠시 후 🔄 버튼을 눌러주세요.'
+      : '등록된 펀치가 없습니다.<br>오른쪽 아래 + 버튼으로 새로 등록하세요.';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  wrap.innerHTML = items.map(cardHtml).join('');
+}
+function cardHtml(it) {
+  const id = it['ID'];
+  const idLabel = it._tempNew ? '신규' : ('#' + esc(id));
+  const dongHoRaw = it['동호수'] || ((it['동']||'') + ' ' + (it['호수']||'')).trim() || '미정';
+  const dongHo = esc(dongHoRaw);
+  const loc = esc(it['위치'] || '미정');
+  const tradeStr = esc((it['공종']||'미정') + (it['세부공종'] ? ' · ' + it['세부공종'] : ''));
+  const vendor = it['업체명'] || '';
+  const content = esc(it['내용'] || '');
+  const status = it['상태'] || '신규';
+  let stClass = 'badge-new'; if (status === '조치중') stClass = 'badge-proc'; if (status === '완료') stClass = 'badge-done';
+
+  const photoBefore = it['시공전사진URL'] || '';
+  const photoAfter  = it['시공후사진URL'] || '';
+
+  let syncChip = '';
+  if (it._sync === 'pending') syncChip = `<span class="sync-chip sync-chip-pending">⏳ 저장 대기중</span>`;
+  else if (it._sync === 'syncing') syncChip = `<span class="sync-chip sync-chip-pending">🔄 동기화중</span>`;
+  else if (it._sync === 'failed') syncChip = `<span class="sync-chip sync-chip-fail" onclick="event.stopPropagation(); retryTask('${escJsAttr(it._qid)}')">⚠️ 실패 · 재시도</span>`;
+
+  return `
+    <div class="p-card" onclick="openEditModal('${escJsAttr(id)}')">
+      <div class="p-card-top">
+        <div class="p-card-id">${idLabel} <span class="badge ${stClass}">${status}</span></div>
+        ${syncChip}
+      </div>
+      <div class="p-card-loc">${dongHo} <span class="p-card-sub">· ${loc}</span></div>
+      <div class="p-card-meta">${tradeStr}${vendor ? ' · ' + esc(vendor) : ''}</div>
+      ${content ? `<div class="p-card-content">${content}</div>` : ''}
+      <div class="p-card-photos">
+        ${photoSlotHtml('시공 전', photoBefore, dongHoRaw)}
+        ${photoSlotHtml('시공 후', photoAfter, dongHoRaw)}
+      </div>
+    </div>
+  `;
+}
+// 목록 카드 썸네일은 92px짜리 작은 칸인데 저장 URL은 상세보기용 원본(sz=w2200)이라,
+// 그대로 쓰면 카드마다 300~850KB 사진을 매번 받아온다(1호 index.html에서 2026-09-06에
+// 발견·수정한 것과 같은 문제 — 2호를 새로 만들 때 이 부분만 이식이 안 됐었다).
+// 확대보기(viewFullPhoto)는 여전히 원본 그대로 넘긴다 — 썸네일 src만 축소.
+function thumbUrl(url) {
+  if (!url) return url;
+  return url.replace(/([?&]sz=)w\d+/, '$1w200');
+}
+function photoSlotHtml(label, url, dongHoRaw) {
+  if (!url) return `<div class="p-photo-slot p-photo-empty">${label}<br>사진 없음</div>`;
+  return `<div class="p-photo-slot"><img src="${esc(thumbUrl(url))}" loading="lazy" decoding="async" onclick="event.stopPropagation(); viewFullPhoto('${escJsAttr(url)}','${label} - ${escJsAttr(dongHoRaw)}')"><span class="p-photo-tag">${label}</span></div>`;
+}
+
+function viewFullPhoto(url, caption) {
+  if (!url) return;
+  document.getElementById('img-modal-title').textContent = caption || '사진';
+  document.getElementById('img-modal-target').src = url;
+  document.getElementById('img-modal').classList.remove('hidden');
+}
+function closeImgModal() { document.getElementById('img-modal').classList.add('hidden'); }
+
+// ── 바텀시트 열고닫기 ─────────────────────────────────────────────
+function openFilterSheet() { document.getElementById('filter-sheet').classList.remove('hidden'); }
+function closeFilterSheet() { document.getElementById('filter-sheet').classList.add('hidden'); }
+function openHelpSheet() { document.getElementById('help-sheet').classList.remove('hidden'); }
+function closeHelpSheet() { document.getElementById('help-sheet').classList.add('hidden'); }
+
+// ── 등록/수정 모달 ────────────────────────────────────────────────
+function resetPhotoFormState() {
+  pendingPhotoBefore = null; pendingPhotoAfter = null;
+  existingBeforeUrl = ''; existingAfterUrl = '';
+}
+function renderPhotoPreviews() {
+  renderOnePhotoPreview('before', pendingPhotoBefore, existingBeforeUrl);
+  renderOnePhotoPreview('after', pendingPhotoAfter, existingAfterUrl);
+}
+function renderOnePhotoPreview(type, pending, existing) {
+  const box = document.getElementById('photo-box-' + type);
+  const img = document.getElementById('photo-preview-' + type);
+  const emptyEl = document.getElementById('photo-empty-' + type);
+  const clearBtn = document.getElementById('clear-' + type + '-btn');
+  const src = pending || existing;
+  if (src) {
+    img.src = src; img.classList.add('show'); emptyEl.style.display = 'none';
+    box.classList.add('has-photo');
+  } else {
+    img.classList.remove('show'); img.src = ''; emptyEl.style.display = 'flex';
+    box.classList.remove('has-photo');
+  }
+  clearBtn.style.display = pending ? 'block' : 'none';
+}
+function clearPendingPhoto(type) {
+  if (type === 'before') pendingPhotoBefore = null; else pendingPhotoAfter = null;
+  renderPhotoPreviews();
+}
+async function onPhotoFileChange(e, type) {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let uploadFile = file;
+  if (file.size > 300 * 1024) {
+    const compressed = await compressImageForUpload(file);
+    if (compressed && compressed.size < file.size) uploadFile = compressed;
+  }
+  const dataUrl = await fileToDataURL(uploadFile);
+  if (type === 'before') pendingPhotoBefore = dataUrl; else pendingPhotoAfter = dataUrl;
+  renderPhotoPreviews();
+
+  // 시공전+후 사진이 둘 다 갖춰지면 "완료"를 기본값으로 제안(강제 아님, 저장 전 언제든 변경 가능) — 1호와 동일한 동작
+  if ((pendingPhotoBefore || existingBeforeUrl) && (pendingPhotoAfter || existingAfterUrl)) {
+    const statusSel = document.getElementById('fi-status');
+    if (statusSel) statusSel.value = '완료';
+  }
+}
+
+function onFormTradeChange() {
+  const tr = v('fi-trade');
+  const subSel = document.getElementById('fi-subtrade');
+  const subs = TRADES[tr] || ['기타'];
+  subSel.innerHTML = subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  populateVendorDatalist(tr);
+}
+
+function openAddModal() {
+  isAddMode = true; currentEditId = null; currentEditTaskQid = null;
+  resetPhotoFormState();
+  document.getElementById('modal-title').textContent = '➕ 펀치 신규 등록';
+  document.getElementById('modal-save-btn').textContent = '💾 신규 등록하기';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-sync-note').innerHTML = '';
+  ['fi-gonggu','fi-dong','fi-ho','fi-loc','fi-trade','fi-vendor','fi-content'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('fi-type').value = '파손';
+  document.getElementById('fi-status').value = '신규';
+  onFormTradeChange();
+  renderPhotoPreviews();
+  document.getElementById('punch-modal').classList.remove('hidden');
+}
+
+function openEditModal(id) {
+  const existingTask = findQueueTaskForLocalId(id);
+  if (existingTask && (existingTask.status === 'pending' || existingTask.status === 'syncing')) {
+    toast('⏳ 이 항목은 지금 동기화 처리 중입니다. 완료 후 다시 시도해주세요.');
+    return;
+  }
+  const item = getRenderList().find(i => String(i['ID']) === String(id));
+  if (!item) return;
+
+  isAddMode = false; currentEditId = id;
+  currentEditTaskQid = (existingTask && existingTask.status === 'failed') ? existingTask.qid : null;
+
+  resetPhotoFormState();
+  existingBeforeUrl = item['시공전사진URL'] || '';
+  existingAfterUrl = item['시공후사진URL'] || '';
+
+  document.getElementById('modal-title').textContent = `✏️ 펀치 상세정보 (#${esc(id)})`;
+  document.getElementById('modal-save-btn').textContent = '💾 변경사항 저장';
+  document.getElementById('modal-delete-btn').style.display = 'block';
+
+  const noteEl = document.getElementById('modal-sync-note');
+  let noteHtml = '';
+  if (item._sync === 'failed') {
+    noteHtml += `<div class="card-sync-note fail">⚠️ 이전 저장이 실패했습니다: ${esc(item._syncError||'')}<br>내용을 확인하고 다시 저장하면 재시도됩니다.</div>`;
+  }
+  const regBits = [];
+  if (item['등록자']) regBits.push('등록: ' + esc(item['등록자']));
+  if (item['최종수정자']) regBits.push('수정: ' + esc(item['최종수정자']) + (item['최종수정일시'] ? ' · ' + esc(item['최종수정일시']) : ''));
+  if (regBits.length) noteHtml += `<div class="field-hint" style="margin-bottom:12px;">${regBits.join(' · ')}</div>`;
+  noteEl.innerHTML = noteHtml;
+
+  document.getElementById('fi-gonggu').value = item['공구'] || '';
+  document.getElementById('fi-dong').value = item['동'] || '';
+  document.getElementById('fi-ho').value = item['호수'] || '';
+  document.getElementById('fi-loc').value = item['위치'] || '';
+  document.getElementById('fi-trade').value = item['공종'] || '';
+  onFormTradeChange();
+  document.getElementById('fi-subtrade').value = item['세부공종'] || '';
+  document.getElementById('fi-type').value = item['유형'] || '파손';
+  document.getElementById('fi-vendor').value = item['업체명'] || '';
+  document.getElementById('fi-status').value = item['상태'] || '신규';
+  document.getElementById('fi-content').value = item['내용'] || '';
+
+  renderPhotoPreviews();
+  document.getElementById('punch-modal').classList.remove('hidden');
+}
+function closePunchModal() { document.getElementById('punch-modal').classList.add('hidden'); }
+
+function collectFormFields() {
+  const dong = v('fi-dong'), ho = v('fi-ho');
+  return {
+    '현장': currentSite,
+    '공구': v('fi-gonggu'),
+    '동': dong,
+    '호수': ho,
+    '동호수': (dong + ' ' + ho).trim(),
+    '위치': v('fi-loc'),
+    '공종': v('fi-trade'),
+    '세부공종': v('fi-subtrade'),
+    '유형': v('fi-type'),
+    '상태': v('fi-status') || '신규',
+    '업체명': v('fi-vendor'),
+    '내용': v('fi-content')
+  };
+}
+
+// 중복등록 방지(2026-09-25) — 같은 하자를 두 사람이 각각 등록하는 걸 완전히 막지는 못하지만
+// (강제 차단은 9/19에 등록자강제prompt를 되돌린 것과 같은 이유로 안 함 — 현장에서 빠른 입력이
+// 우선), 저장 직전에 위치·공종이 겹치는 미완료 항목이 있으면 경고해서 재확인시킨다.
+// 위치정보(동/호수/위치)가 하나라도 비어있으면(9/20 "미정 10건" 사례처럼 사진만 급히 찍은
+// 경우) 비교 자체가 무의미해 스킵한다.
+function findLikelyDuplicate_(fields) {
+  if (!fields['동'] || !fields['호수'] || !fields['위치']) return null;
+  return getRenderList().find(it =>
+    String(it['상태'] || '') !== '완료' &&
+    String(it['동'] || '') === fields['동'] &&
+    String(it['호수'] || '') === fields['호수'] &&
+    String(it['위치'] || '') === fields['위치'] &&
+    String(it['공종'] || '') === (fields['공종'] || '') &&
+    String(it['세부공종'] || '') === (fields['세부공종'] || '')
+  );
+}
+
+function saveFromModal() {
+  const fields = collectFormFields();
+  const photos = { before: pendingPhotoBefore, after: pendingPhotoAfter };
+  const userName = getUserName();
+  if (isAddMode) fields['등록자'] = userName; else fields['최종수정자'] = userName;
+
+  if (isAddMode) {
+    const dup = findLikelyDuplicate_(fields);
+    if (dup && !confirm(`⚠️ 비슷한 항목이 이미 있습니다 (#${dup['ID']}, ${dup['상태']||'신규'}).\n같은 위치·공종의 하자가 중복 등록될 수 있습니다.\n그래도 등록하시겠습니까?`)) {
+      return; // 등록 취소 — 모달은 유지, 내용 수정 후 다시 저장 가능
+    }
+    enqueueAdd(fields, photos);
+  } else if (currentEditTaskQid) {
+    // 실패했던 작업을 새로 만들지 않고 그 자리에서 고쳐씀 (중복 작업 방지)
+    const task = queue.find(t => t.qid === currentEditTaskQid);
+    if (task) {
+      task.fields = fields;
+      if (photos.before) { task.photos.before = photos.before; task.uploadedUrls.before = null; }
+      if (photos.after) { task.photos.after = photos.after; task.uploadedUrls.after = null; }
+      task.status = 'pending'; task.attempts = 0; task.lastError = '';
+    } else {
+      enqueueUpdate(currentEditId, fields, photos);
+    }
+  } else {
+    enqueueUpdate(currentEditId, fields, photos);
+  }
+
+  persistQueue();
+  closePunchModal();
+  applyFilters();
+  toast('💾 임시 저장됨 — 백그라운드에서 자동 동기화됩니다');
+  runQueue();
+}
+
+function deleteFromModal() {
+  if (!currentEditId) return;
+  const id = currentEditId;
+  if (!confirm('이 항목을 삭제하시겠습니까?\n(삭제해도 시트에서는 "삭제됨" 상태로만 표시되어, 필요하면 나중에 되살릴 수 있습니다)')) return;
+
+  const isTemp = String(id).startsWith('tmp_');
+  closePunchModal();
+
+  // 이 항목에 대해 대기 중이던 다른 작업(수정 등)은 삭제로 인해 의미가 없어지므로 먼저 취소
+  const existingTask = findQueueTaskForLocalId(id);
+  if (existingTask) removeTaskFromQueue(existingTask.qid);
+
+  if (isTemp) {
+    // 서버에 한 번도 등록된 적 없는 항목 — 큐에서 빼는 것만으로 끝(서버 호출 불필요)
+    persistQueue();
+    applyFilters();
+    toast('🗑️ 삭제했습니다 (서버 미등록 항목)');
+    return;
+  }
+
+  // 이미 서버에 등록된 항목 — 등록/수정과 동일하게 큐에 넣어 백그라운드 처리 + 실패시
+  // 자동/수동 재시도(예전엔 여기서만 1회성 gasCall로 처리해서, 오프라인이면 재시도
+  // 없이 서버와 영구히 어긋날 수 있었음 — 2026-09-17 발견, 큐 방식으로 통일)
+  enqueueDelete(id);
+  applyFilters();
+  toast('🗑️ 삭제 처리중 — 실패하면 자동으로 재시도됩니다');
+  runQueue();
+}
+
+// ── 초기화 ────────────────────────────────────────────────────────
+function updateOfflineBanner() {
+  document.getElementById('offline-banner').style.display = navigator.onLine ? 'none' : 'flex';
+}
+
+// ── 다현장 선택 UI (2026-09-25, 1호와 동일 패턴) ────────────────────
+function renderSiteSwitcher() {
+  const sel = document.getElementById('site-switcher');
+  if (!sel) return;
+  const names = siteList.length ? siteList.map(s => s.name) : [currentSite];
+  if (!names.includes(currentSite)) names.unshift(currentSite);
+  sel.innerHTML = names.map(n => `<option value="${esc(n)}" ${n === currentSite ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
+async function loadSiteList() {
+  try {
+    const res = await gasCall('getSiteList', {});
+    if (Array.isArray(res) && res.length) siteList = res;
+  } catch (e) { console.warn('현장목록 로딩 실패:', e); }
+  renderSiteSwitcher();
+}
+// 현장 전환 시 화면상태를 초기화하고(큐는 안 지움 — 다른 현장 작업은 백그라운드에서 계속 진행)
+// 그 현장의 캐시 유무에 따라 즉시/대기 렌더링한다.
+function onSiteChange() {
+  const sel = document.getElementById('site-switcher');
+  const next = sel.value;
+  if (!next || next === currentSite) return;
+  currentSite = next;
+  localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+  serverList = [];
+  SERVER_CONFIG_DATA = null;
+  loadCachedConfig();
+  populateDongOptions();
+  onFormTradeChange();
+  const hadCache = loadCachedList();
+  applyFilters();
+  loadConfig();
+  loadList(!hadCache);
+  toast('🏗️ "' + currentSite + '" 현장으로 전환되었습니다.');
+}
+async function openAddSitePrompt() {
+  const name = prompt('새 현장명을 입력하세요 (예: 하남감일 지구대):');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  if (siteList.some(s => s.name === trimmed)) { toast('⚠️ 이미 존재하는 현장명입니다.'); return; }
+  busy(true, '⏳ 새 현장 생성 중... (스프레드시트 복사라 몇 초 걸릴 수 있습니다)');
+  try {
+    await gasCall('createSite', { siteName: trimmed });
+    toast('✅ "' + trimmed + '" 현장이 생성되었습니다.');
+    await loadSiteList();
+    document.getElementById('site-switcher').value = trimmed;
+    onSiteChange();
+  } catch (e) {
+    toast('⚠️ 현장 생성 실패: ' + (e.message || e));
+  } finally {
+    busy(false);
+  }
+}
+
+function initApp() {
+  restoreQueue();
+  initGoogleSignIn_();
+  renderSiteSwitcher(); // 네트워크 응답 전, 지금 선택된 현장명만이라도 즉시 표시
+  loadSiteList();
+  loadCachedConfig(); // 캐시 있으면 아래 onFormTradeChange()가 바로 실데이터로 업체자동완성을 채움
+  populateDongOptions();
+  onFormTradeChange();
+  const hadCache = loadCachedList();
+  applyFilters(); // 캐시가 있으면 서버 응답을 기다리지 않고 즉시 화면에 반영
+  updateOfflineBanner();
+  loadConfig();
+  loadList(!hadCache); // 캐시가 있으면 전체화면 로딩 없이 조용히 백그라운드 새로고침
+  runQueue();
+
+  window.addEventListener('online', () => { updateOfflineBanner(); runQueue(); loadList(false); });
+  window.addEventListener('offline', updateOfflineBanner);
+
+  // 15초 주기 자동 동기화 — 1호와 동일한 주기. 등록/수정 모달이 열려있으면 건너뜀(입력 중 화면 흔들림 방지)
+  // 화면이 백그라운드(다른 앱 전환/화면 꺼짐)면 건너뜀 — 모바일 데이터/배터리 절약, 화면 복귀 시 즉시 1회 갱신
+  setInterval(() => {
+    if (document.hidden) return;
+    if (!document.getElementById('punch-modal').classList.contains('hidden')) return;
+    loadList(false);
+  }, 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadList(false);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.__DISABLE_AUTO_INIT__) return;
+  initApp();
+});
+
+// ── 출력(엑셀/인쇄) — 1호(index.html)의 exportExcel() 로직 그대로 재사용 ──
+function exportExcel() {
+  if (!filteredList || filteredList.length === 0) {
+    toast('내보낼 데이터가 없습니다.');
+    return;
+  }
+  let csv = '﻿ID,현장,공구,동,호수,동호수,위치,공종,세부공종,유형,결함내용,상태,업체명,등록일,등록자,최종수정자,최종수정일시,시공전사진URL,시공후사진URL,전체사진URL\n';
+  filteredList.forEach(i => {
+    const id       = i['ID'] || '';
+    const site     = i['현장'] || '';
+    const gonggu   = i['공구'] || '';
+    const dong     = i['동'] || '';
+    const ho       = i['호수'] || '';
+    const dongHo   = i['동호수'] || '';
+    const loc      = i['위치'] || '';
+    const trade    = i['공종'] || '';
+    const subtrade = i['세부공종'] || '';
+    const type     = i['유형'] || '';
+    const content  = (i['내용'] || i['결함내용'] || i['지적사항'] || '').replace(/"/g, '""');
+    const status   = i['상태'] || '';
+    const vendor   = i['업체명'] || '';
+    const date     = i['등록일'] || '';
+    const regBy    = i['등록자'] || '';
+    const modBy    = i['최종수정자'] || '';
+    const modAt    = i['최종수정일시'] || '';
+    const pBefore  = i['시공전사진URL'] || i['시공전 사진URL'] || i['사진URL'] || '';
+    const pAfter   = i['시공후사진URL'] || i['시공후 사진URL'] || '';
+    const pAll     = [pBefore, pAfter].filter(Boolean).join(' | ');
+
+    csv += `"${id}","${site}","${gonggu}","${dong}","${ho}","${dongHo}","${loc}","${trade}","${subtrade}","${type}","${content}","${status}","${vendor}","${date}","${regBy}","${modBy}","${modAt}","${pBefore}","${pAfter}","${pAll}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `스마트펀치리스트_2호_${new Date().toISOString().substring(0,10)}.csv`;
+  a.click();
+  toast('사진 URL이 포함된 엑셀(CSV) 내보내기가 완료되었습니다!');
+}
+
+// 카드형 다크UI는 그대로 인쇄하면 가독성이 떨어지므로, 새 창에 밝은 배경의
+// 표 형태 인쇄용 문서를 만들어 그쪽에서 window.print()를 호출한다(1호의
+// @media print 표 레이아웃과 같은 목적, 구현 방식만 다름 — 2호는 카드 렌더러뿐이라
+// 별도 표 HTML을 조립하는 쪽이 더 간단하고 안전함).
+function printReport() {
+  if (!filteredList || filteredList.length === 0) {
+    toast('인쇄할 데이터가 없습니다.');
+    return;
+  }
+  const rows = filteredList.map(i => `
+    <tr>
+      <td>${esc(i['ID']||'')}</td>
+      <td>${esc(i['동']||'')} ${esc(i['호수']||'')}</td>
+      <td>${esc(i['위치']||'')}</td>
+      <td>${esc(i['공종']||'')}</td>
+      <td>${esc(i['유형']||'')}</td>
+      <td>${esc(i['내용']||i['결함내용']||i['지적사항']||'')}</td>
+      <td>${esc(i['상태']||'')}</td>
+      <td>${esc(i['업체명']||'')}</td>
+      <td>${esc(i['등록일']||'')}</td>
+    </tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>스마트 펀치리스트 인쇄용</title>
+<style>
+  body{font-family:'Malgun Gothic',sans-serif;padding:16px;color:#111;}
+  h1{font-size:1.2rem;margin-bottom:4px;}
+  .meta{color:#555;font-size:0.82rem;margin-bottom:12px;}
+  table{width:100%;border-collapse:collapse;font-size:0.76rem;}
+  th,td{border:1px solid #999;padding:5px 6px;text-align:left;vertical-align:top;word-break:break-all;}
+  th{background:#eee;}
+  @media print { @page { size: A4 landscape; margin: 10mm; } }
+</style></head><body>
+<h1>스마트 펀치리스트 (모바일 2호)</h1>
+<div class="meta">출력일: ${esc(new Date().toLocaleString('ko-KR'))} · 총 ${filteredList.length}건</div>
+<table><thead><tr><th>ID</th><th>동호수</th><th>위치</th><th>공종</th><th>유형</th><th>내용</th><th>상태</th><th>업체명</th><th>등록일</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<script>window.onload = () => window.print();<\/script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast('팝업이 차단되었습니다 — 브라우저 팝업 허용 후 다시 시도해주세요.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+</script>
+</body>
+</html>
