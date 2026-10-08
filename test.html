@@ -578,8 +578,10 @@ async function gasCall(action, params) {
       const latest = getStoredPasscode_();
       if (latest && latest !== passcode) return await gasCallRaw_(action, Object.assign({}, params, { passcode: latest, idToken }));
       if (passcodePromptCanceled_) throw e;
+      // 비번창은 🔄 누를 때까지 1번만 — 틀린 값/빈칸으로 확인해도 주기적 새로고침마다 또 뜨지 않게(2026-10-09 태야 폰 2차)
+      passcodePromptCanceled_ = true;
       const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다(또는 로그인이 만료됐습니다). 비밀번호를 입력하거나, 위의 "구글 계정으로 로그인" 버튼을 다시 눌러주세요:');
-      if (newPass === null) { passcodePromptCanceled_ = true; throw e; }
+      if (newPass === null) throw e;
       return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass, idToken }));
     }
     throw e;
@@ -973,8 +975,11 @@ async function loadList(showBusy) {
     }
   }
   if (lastErr) {
+    const prevFailed = serverLoadFailed;
     serverLoadFailed = String(lastErr.message || lastErr).includes('ACCESS_DENIED') ? 'denied' : true;
-    if (serverLoadFailed === 'denied' && !serverList.length) {
+    // 15초 자동새로고침마다 같은 경고가 반복되지 않게 — 상태가 바뀌었거나 🔄로 직접 눌렀을 때만 알림
+    if (prevFailed === serverLoadFailed && !showBusy) { /* 같은 실패 반복: 화면 안내문만 유지 */ }
+    else if (serverLoadFailed === 'denied' && !serverList.length) {
       toast('🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다 — 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.');
     } else if (!serverList.length) {
       toast('⚠️ 서버에 연결하지 못했습니다 — 잠시 후 🔄 새로고침을 눌러주세요 (' + (lastErr.message || lastErr) + ')');
