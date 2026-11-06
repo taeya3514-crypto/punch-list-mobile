@@ -38,10 +38,12 @@
   }
   header h1 { font-size: 1.15rem; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 8px; line-height: 1.25; min-width: 0; flex-shrink: 1; }
   header h1 img { height: 34px; width: auto; border-radius: 6px; flex-shrink: 0; }
+  /* 아이콘버튼 44px로 키운 뒤 폰(360~430)에서 제목이 두 줄로 깨지지 않게(2026-10-09) */
+  @media (max-width: 430px) { header { padding: 10px; gap: 6px; } .header-btns { gap: 4px; } header h1 { font-size: 0.9rem; gap: 5px; white-space: nowrap; } header h1 img { height: 26px; } }
   .header-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; flex-shrink: 0; }
   .icon-btn {
     background: #0f172a; border: 1.5px solid var(--card-border); color: var(--text);
-    width: 34px; height: 34px; border-radius: 9px; font-size: 1rem;
+    width: 44px; height: 44px; border-radius: 10px; font-size: 1.15rem;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
   }
   .icon-btn:active { background: #26334d; }
@@ -169,6 +171,7 @@
 
   /* ── 토스트 / 로딩 ── */
   #toast { position: fixed; left: max(12px, calc(50vw - 240px + 12px)); right: max(12px, calc(50vw - 240px + 12px)); bottom: calc(96px + env(safe-area-inset-bottom)); background: #0284c7; color: #fff; padding: 14px 18px; border-radius: 12px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 3000; display: none; }
+  #toast.warn { background: #b45309; bottom: auto; top: calc(12px + env(safe-area-inset-top)); border: 2px solid #f59e0b; }
   .loading-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.75); display: flex; align-items: center; justify-content: center; z-index: 4000; font-size: 1.15rem; font-weight: 900; color: var(--primary); }
   .loading-overlay.hidden { display: none !important; }
 
@@ -180,7 +183,7 @@
 <body>
 
 <div id="loading" class="loading-overlay hidden"><div id="loading-msg">⏳ 불러오는 중...</div></div>
-<div id="toast"></div>
+<div id="toast" onclick="this.style.display='none'"></div>
 
 <header>
   <h1>
@@ -188,7 +191,7 @@
     펀치리스트 2호
   </h1>
   <div class="header-btns">
-    <button class="icon-btn" onclick="loadList(true)" title="새로고침">🔄</button>
+    <button class="icon-btn" onclick="passcodePromptCanceled_ = false; loadList(true)" title="새로고침">🔄</button>
     <button class="icon-btn" onclick="exportExcel()" title="엑셀(CSV) 내보내기">📊</button>
     <button class="icon-btn" onclick="printReport()" title="인쇄">🖨️</button>
     <button class="icon-btn" onclick="openHelpSheet()" title="사용방법">❓</button>
@@ -484,6 +487,10 @@ function nowKST() {
 function toast(msg, ms = 3500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
+  // 경고(⚠️/❌)는 눈에 띄는 색+화면 위쪽에 띄워 등록창 입력칸을 가리지 않게, 더 오래 표시(2026-10-09)
+  const warn = /^(⚠️|❌|🔒)/.test(msg);
+  t.classList.toggle('warn', warn);
+  if (warn && ms < 8000) ms = 8000;
   t.style.display = 'block';
   clearTimeout(toast._t);
   toast._t = setTimeout(() => { t.style.display = 'none'; }, ms);
@@ -557,13 +564,42 @@ function gasCallRaw_(action, params) {
   if (action === 'uploadPhoto') return callPost(action, params);
   return callJsonp(action, params);
 }
+let passcodePromptCanceled_ = false;
+// 2026-11-06 구글 로그인(ID 토큰)은 약 1시간 뒤 만료되는데, 예전엔 만료된 토큰을 브라우저에 계속 두고 보내서
+// 서버가 조용히 무시하고 ACCESS_DENIED → 비밀번호 입력창이 계속 떴다. 보내기 전에 만료를 확인해 지우고,
+// 안내만 한다(비밀번호를 아직 한 번도 안 넣은 로그인 사용자에겐 입력창을 띄우지 않는다).
+let googleLoginExpired_ = false;
+function idTokenExpired_(token) {
+  try {
+    const exp = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp;
+    return typeof exp === 'number' && exp * 1000 < Date.now() + 30000;
+  } catch (e) { return false; } // 해독 못 하면 서버 판단에 맡김
+}
+function expireGoogleLogin_() {
+  try { localStorage.removeItem(GIS_ID_TOKEN_KEY); } catch (e) {}
+  const first = !googleLoginExpired_;
+  googleLoginExpired_ = true;
+  updateGisLoginUi_();
+  if (first) toast('🔒 구글 로그인이 만료됐습니다 — 위의 "구글 계정으로 로그인"을 다시 눌러주세요.');
+}
 async function gasCall(action, params) {
   const passcode = getStoredPasscode_();
-  const idToken = getStoredIdToken_();
+  let idToken = getStoredIdToken_();
+  if (idToken && idTokenExpired_(idToken)) { expireGoogleLogin_(); idToken = ''; }
   try {
     return await gasCallRaw_(action, Object.assign({}, params, { passcode, idToken }));
   } catch (e) {
     if (e && String(e.message || e).includes('ACCESS_DENIED')) {
+      // 첫 화면에서 목록·설정·현장목록 호출이 동시에 실패하면 비번창이 연달아 5번쯤 떠서
+      // "취소도 확인도 안 된다"처럼 보였음(2026-10-09 태야 폰). 그 사이 다른 호출이 이미
+      // 새 비번을 받았으면 그걸로 재시도만 하고, 한 번 취소했으면 🔄 누르기 전까진 다시 안 물어봄.
+      const latest = getStoredPasscode_();
+      if (latest && latest !== passcode) return await gasCallRaw_(action, Object.assign({}, params, { passcode: latest, idToken }));
+      if (passcodePromptCanceled_) throw e;
+      // 로그인이 만료된 사용자는 비밀번호를 쓴 적이 없으면 입력창 대신 재로그인 안내만(위 토스트)
+      if (googleLoginExpired_ && !latest && !passcode) throw e;
+      // 비번창은 🔄 누를 때까지 1번만 — 틀린 값/빈칸으로 확인해도 주기적 새로고침마다 또 뜨지 않게(2026-10-09 태야 폰 2차)
+      passcodePromptCanceled_ = true;
       const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다(또는 로그인이 만료됐습니다). 비밀번호를 입력하거나, 위의 "구글 계정으로 로그인" 버튼을 다시 눌러주세요:');
       if (newPass === null) throw e;
       return await gasCallRaw_(action, Object.assign({}, params, { passcode: newPass, idToken }));
@@ -597,6 +633,7 @@ function signOutGoogle_() {
 }
 function handleGisCredentialResponse_(response) {
   try { localStorage.setItem(GIS_ID_TOKEN_KEY, response.credential); } catch (e) {}
+  googleLoginExpired_ = false; passcodePromptCanceled_ = false;
   document.getElementById('gis-button-container').style.display = 'none';
   updateGisLoginUi_();
   toast('✅ 구글 로그인 완료 — 이제 등록/수정 시 이 계정으로 기록됩니다.');
@@ -935,10 +972,11 @@ function loadCachedList() {
   return false;
 }
 function saveCachedList() {
-  try { localStorage.setItem(listCacheKey_(), JSON.stringify(serverList)); }
+  try { localStorage.setItem(listCacheKey_(), JSON.stringify(serverList)); localStorage.setItem(listCacheKey_() + '_AT', new Date().toISOString()); }
   catch (e) { console.warn('목록 캐시 저장 실패(localStorage 용량초과 등):', e); }
 }
 
+let serverLoadFailed = false;
 async function loadList(showBusy) {
   if (showBusy) busy(true, '⏳ 펀치 데이터 불러오는 중...');
   // 모바일 네트워크(특히 현장)에서 JSONP 스크립트 로드가 간헐적으로 실패하는 사례가
@@ -949,14 +987,28 @@ async function loadList(showBusy) {
       const res = await gasCall('getPunchList', { siteName: currentSite });
       if (Array.isArray(res)) { serverList = res; saveCachedList(); }
       lastErr = null;
+      serverLoadFailed = false;
       break;
     } catch (e) {
       lastErr = e;
+      if (String(e.message || e).includes('ACCESS_DENIED')) break;
       if (attempt < 2) await sleep(1500 * (attempt + 1));
     }
   }
-  if (lastErr && !serverList.length) {
-    toast('⚠️ 서버 연결 실패 — 저장된 항목만 표시합니다 (' + (lastErr.message || lastErr) + ')');
+  if (lastErr) {
+    const prevFailed = serverLoadFailed;
+    serverLoadFailed = String(lastErr.message || lastErr).includes('ACCESS_DENIED') ? 'denied' : true;
+    // 15초 자동새로고침마다 같은 경고가 반복되지 않게 — 상태가 바뀌었거나 🔄로 직접 눌렀을 때만 알림
+    if (prevFailed === serverLoadFailed && !showBusy) { /* 같은 실패 반복: 화면 안내문만 유지 */ }
+    else if (serverLoadFailed === 'denied' && !serverList.length) {
+      toast(googleLoginExpired_ ? '🔒 구글 로그인이 만료됐습니다 — 위의 "구글 계정으로 로그인"을 다시 눌러주세요.' : '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다 — 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.');
+    } else if (!serverList.length) {
+      toast('⚠️ 서버에 연결하지 못했습니다 — 잠시 후 🔄 새로고침을 눌러주세요 (' + (lastErr.message || lastErr) + ')');
+    } else {
+      let at = '';
+      try { const v = localStorage.getItem(listCacheKey_() + '_AT'); if (v) at = new Date(v).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+      toast((serverLoadFailed === 'denied' ? '🔒 비밀번호 확인 필요' : '⚠️ 서버 연결 안 됨') + ' — 마지막으로 받은 목록' + (at ? '(' + at + ')' : '') + '을 보여드립니다. 최신이 아닐 수 있어요.');
+    }
   }
   updateFiltersOptions();
   applyFilters();
@@ -1071,6 +1123,12 @@ function renderCards(items) {
   const empty = document.getElementById('empty');
   if (!items || items.length === 0) {
     wrap.innerHTML = '';
+    // 서버 실패로 목록 자체를 못 받은 경우, "펀치 없음"으로 보이면 데이터가 날아간 걸로 오해함(2026-10-09)
+    empty.innerHTML = (serverLoadFailed === 'denied' && !serverList.length)
+      ? (googleLoginExpired_ ? '🔒 구글 로그인이 만료되어 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 위의 "구글 계정으로 로그인"을 다시 눌러주세요.' : '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.')
+      : (serverLoadFailed && !serverList.length)
+      ? '⚠️ 서버에 연결하지 못해 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 잠시 후 🔄 버튼을 눌러주세요.'
+      : '등록된 펀치가 없습니다.<br>오른쪽 아래 + 버튼으로 새로 등록하세요.';
     empty.style.display = 'block';
     return;
   }
