@@ -208,6 +208,7 @@
     <button class="icon-btn" onclick="passcodePromptCanceled_ = false; loadList(true)" title="새로고침">🔄</button>
     <button class="icon-btn" onclick="exportExcel()" title="사진 포함 엑셀(.xlsx) 내보내기">📊</button>
     <button class="icon-btn" onclick="openImportSheet()" title="엑셀(CSV) 올리기">📥</button>
+    <button class="icon-btn" id="btn-toggle-view" onclick="toggleViewMode()" title="테이블/카드 뷰 전환">📋</button>
     <button class="icon-btn" onclick="printReport()" title="인쇄">🖨️</button>
     <button class="icon-btn" onclick="openHelpSheet()" title="사용방법">❓</button>
   </div>
@@ -257,6 +258,25 @@
 </div>
 
 <div id="card-list"></div>
+<div id="table-view-wrap" style="display:none; overflow-x:auto; background:var(--card-bg); border:1.5px solid var(--card-border); border-radius:14px; margin-bottom:14px;">
+  <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.95rem; min-width:850px;">
+    <thead>
+      <tr style="background:#0f172a; color:var(--text-muted); border-bottom:1.5px solid var(--card-border);">
+        <th style="padding:12px;">ID</th>
+        <th style="padding:12px;">공구</th>
+        <th style="padding:12px;">동 / 호수 (평형)</th>
+        <th style="padding:12px;">위치</th>
+        <th style="padding:12px;">공종 / 세부공종</th>
+        <th style="padding:12px;">유형 / 결함내용</th>
+        <th style="padding:12px;">사진</th>
+        <th style="padding:12px;">상태</th>
+        <th style="padding:12px;">업체명</th>
+        <th style="padding:12px;">등록자</th>
+      </tr>
+    </thead>
+    <tbody id="table-view-body"></tbody>
+  </table>
+</div>
 <div id="empty" class="empty-state" style="display:none;">등록된 펀치가 없습니다.<br>오른쪽 아래 + 버튼으로 새로 등록하세요.</div>
 
 <button id="fab-add" onclick="openAddModal()">＋</button>
@@ -1255,13 +1275,32 @@ function updateStats(list) {
   document.querySelectorAll('.stat-card').forEach(c => c.classList.toggle('active', c.dataset.status === curStatus));
 }
 
-// ── 카드 렌더링 ───────────────────────────────────────────────────
+// ── 카드 및 테이블 뷰 모드 ───────────────────────────────────────
+let currentViewMode_ = localStorage.getItem('punchlist_view_mode') || 'card';
+
+function toggleViewMode() {
+  currentViewMode_ = (currentViewMode_ === 'card') ? 'table' : 'card';
+  try { localStorage.setItem('punchlist_view_mode', currentViewMode_); } catch(e){}
+  const btn = document.getElementById('btn-toggle-view');
+  if (btn) btn.textContent = (currentViewMode_ === 'card') ? '📋' : '📱';
+  toast(currentViewMode_ === 'card' ? '📱 모바일 카드 뷰로 전환되었습니다' : '📋 대화면 테이블 뷰로 전환되었습니다');
+  renderCards(filteredList);
+}
+
+// ── 카드 & 테이블 렌더링 ───────────────────────────────────────────
 function renderCards(items) {
-  const wrap = document.getElementById('card-list');
+  const cardWrap = document.getElementById('card-list');
+  const tblWrap = document.getElementById('table-view-wrap');
+  const tblBody = document.getElementById('table-view-body');
   const empty = document.getElementById('empty');
+  const toggleBtn = document.getElementById('btn-toggle-view');
+  if (toggleBtn) toggleBtn.textContent = (currentViewMode_ === 'card') ? '📋' : '📱';
+
   if (!items || items.length === 0) {
-    wrap.innerHTML = '';
-    // 서버 실패로 목록 자체를 못 받은 경우, "펀치 없음"으로 보이면 데이터가 날아간 걸로 오해함(2026-10-09)
+    cardWrap.innerHTML = '';
+    if (tblBody) tblBody.innerHTML = '';
+    cardWrap.style.display = 'none';
+    if (tblWrap) tblWrap.style.display = 'none';
     empty.innerHTML = (serverLoadFailed === 'denied' && !serverList.length)
       ? (googleLoginExpired_ ? '🔒 구글 로그인이 만료되어 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 위의 "구글 계정으로 로그인"을 다시 눌러주세요.' : '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.')
       : (serverLoadFailed && !serverList.length)
@@ -1271,7 +1310,52 @@ function renderCards(items) {
     return;
   }
   empty.style.display = 'none';
-  wrap.innerHTML = items.map(cardHtml).join('');
+
+  if (currentViewMode_ === 'table') {
+    cardWrap.style.display = 'none';
+    if (tblWrap) tblWrap.style.display = 'block';
+    if (tblBody) tblBody.innerHTML = items.map(tableViewRowHtml_).join('');
+  } else {
+    if (tblWrap) tblWrap.style.display = 'none';
+    cardWrap.style.display = 'flex';
+    cardWrap.innerHTML = items.map(cardHtml).join('');
+  }
+}
+
+function tableViewRowHtml_(it) {
+  const id = it['ID'];
+  const idLabel = it._tempNew ? '신규' : ('#' + esc(id));
+  const dongHoRaw = it['동호수'] || ((it['동']||'') + ' ' + (it['호수']||'')).trim() || '미정';
+  const unitInfo = lookupUnitInfo_(it['동'], it['호수']);
+  const unitBadge = (unitInfo && !unitInfo.invalid) ? ` <span style="color:var(--primary); font-weight:800;">(${esc(unitInfo.type)})</span>` : '';
+  const status = it['상태'] || '신규';
+  let stClass = 'badge-new'; if (status === '조치중') stClass = 'badge-proc'; if (status === '완료') stClass = 'badge-done';
+
+  const photoBefore = it['시공전사진URL'] || '';
+  const photoAfter  = it['시공후사진URL'] || '';
+  let photoHtml = '<span style="color:var(--text-muted); font-size:0.8rem;">-</span>';
+  if (photoBefore || photoAfter) {
+    photoHtml = '<div style="display:flex; gap:4px;">';
+    if (photoBefore) photoHtml += `<img src="${esc(thumbUrl(photoBefore))}" style="width:36px; height:36px; object-fit:cover; border-radius:6px;" onclick="event.stopPropagation(); viewFullPhoto('${escJsAttr(photoBefore)}','시공전 - #${escJsAttr(id)}')">`;
+    if (photoAfter) photoHtml += `<img src="${esc(thumbUrl(photoAfter))}" style="width:36px; height:36px; object-fit:cover; border-radius:6px;" onclick="event.stopPropagation(); viewFullPhoto('${escJsAttr(photoAfter)}','시공후 - #${escJsAttr(id)}')">`;
+    photoHtml += '</div>';
+  }
+
+  const td = 'padding:10px 12px; border-bottom:1px solid var(--card-border); vertical-align:middle;';
+  return `
+    <tr style="cursor:pointer;" onclick="openEditModal('${escJsAttr(id)}')">
+      <td style="${td}font-weight:800;">${idLabel}</td>
+      <td style="${td}color:var(--text-muted); font-size:0.85rem;">${esc(it['공구']||'')}</td>
+      <td style="${td}font-weight:800;">${esc(dongHoRaw)}${unitBadge}</td>
+      <td style="${td}">${esc(it['위치']||'')}</td>
+      <td style="${td}">${esc(it['공종']||'')}${it['세부공종'] ? ' / ' + esc(it['세부공종']) : ''}</td>
+      <td style="${td}"><strong>[${esc(it['유형']||'하자')}]</strong> ${esc(it['내용']||'')}</td>
+      <td style="${td}">${photoHtml}</td>
+      <td style="${td}"><span class="badge ${stClass}">${status}</span></td>
+      <td style="${td}">${esc(it['업체명']||'-')}</td>
+      <td style="${td}font-size:0.85rem; color:var(--text-muted);">${esc(it['등록자']||'-')}</td>
+    </tr>
+  `;
 }
 function cardHtml(it) {
   const id = it['ID'];
