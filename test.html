@@ -75,7 +75,17 @@
   .stat-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
   .stat-val { font-size: 1.35rem; font-weight: 900; margin-top: 2px; color: var(--primary); }
 
-  /* ── 필터 트리거 ── */
+  /* ── 검색창 & 필터 트리거 ── */
+  .search-row { position: relative; display: flex; align-items: center; margin-bottom: 8px; }
+  .search-row input {
+    width: 100%; background: var(--card-bg); border: 1.5px solid var(--card-border); color: var(--text);
+    padding: 11px 38px 11px 14px; border-radius: 12px; font-size: 0.95rem; font-weight: 700;
+  }
+  .search-row input:focus { border-color: var(--primary); }
+  .search-clear-btn {
+    position: absolute; right: 8px; background: none; border: none; color: var(--text-muted);
+    font-size: 1.1rem; width: 28px; height: 28px; cursor: pointer; display: none; align-items: center; justify-content: center;
+  }
   .filter-trigger-row { display: flex; gap: 8px; margin-bottom: 10px; }
   .filter-trigger-btn {
     flex: 1; background: var(--card-bg); border: 1.5px solid var(--card-border); color: var(--text);
@@ -96,7 +106,8 @@
   .badge-done { background: #22c55e; color: #fff; }
   .p-card-loc { font-size: 1.3rem; font-weight: 900; color: var(--text); margin-bottom: 4px; }
   .p-card-sub { font-size: 1rem; color: var(--text-muted); font-weight: 700; }
-  .p-card-meta { font-size: 0.95rem; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; }
+  .p-card-meta { font-size: 0.95rem; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+  .p-card-reg { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
   .p-card-content { font-size: 0.95rem; color: #e2e8f0; background: #0f172a; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
   .p-card-photos { display: flex; gap: 8px; }
   .p-photo-slot { position: relative; flex: 1; height: 92px; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--card-border); background: #0b1220; }
@@ -235,6 +246,11 @@
   </div>
 </div>
 
+<div class="search-row">
+  <input type="text" id="f-search" oninput="onSearchInput()" placeholder="🔎 호수·결함내용·업체명·등록자·ID 검색...">
+  <button type="button" class="search-clear-btn" id="f-search-clear" onclick="clearSearch()" title="검색어 지우기">✕</button>
+</div>
+
 <div class="filter-trigger-row">
   <button class="filter-trigger-btn" id="filter-trigger-btn" onclick="openFilterSheet()">🔍 필터</button>
   <button class="filter-trigger-btn" id="sync-indicator" onclick="onSyncChipTap()">✅ 모두 동기화됨</button>
@@ -276,7 +292,7 @@
     <div class="sheet-header"><h3>👥 등록자별 요약</h3><button class="close-x" onclick="closeRegSummary()">&times;</button></div>
     <div class="sheet-body">
       <div id="reg-summary-body" style="overflow-x:auto;"></div>
-      <div style="font-size:0.8rem; color:var(--text-muted);">줄을 누르면 그 등록자만 목록에 표시됩니다. 표시 후 헤더의 📊를 누르면 그 사람 건만 CSV로 받습니다.</div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">줄을 누르면 그 등록자만 목록에 표시됩니다. 표시 후 헤더의 📊를 누르면 그 사람 건만 사진 포함 엑셀(.xlsx)로 받습니다.</div>
     </div>
   </div>
 </div>
@@ -300,15 +316,15 @@
     <div class="sheet-header"><h3>❓ 사용방법 (모바일 2호)</h3><button class="close-x" onclick="closeHelpSheet()">&times;</button></div>
     <div class="sheet-body">
       <ol>
-        <li><strong>등록</strong> — 오른쪽 아래 ＋ 버튼. 사진부터 찍고 나머지 항목은 나중에 채워도 됩니다.</li>
+        <li><strong>등록</strong> — 오른쪽 아래 ＋ 버튼. 사진부터 찍고 나머지 항목은 나중에 채워도 됩니다. 같은 세대를 연속 점검할 땐 "📌 직전 위치 불러오기" 버튼으로 공구·동·호수·위치·공종을 한 번에 채울 수 있습니다.</li>
         <li><strong>즉시 저장</strong> — 저장을 누르면 화면엔 바로 반영되고, 실제 서버 저장은 뒤에서 자동으로 진행됩니다.</li>
         <li><strong>동기화 상태</strong> — 카드에 "저장 대기중/동기화중/실패" 표시가 뜨면 아직 서버에 완전히 반영되지 않은 것입니다. "실패"는 탭하면 다시 시도합니다.</li>
         <li><strong>오프라인</strong> — 인터넷이 끊겨도 등록/수정/삭제는 계속 가능하고, 연결되면 자동으로 밀린 작업이 진행됩니다. 화면을 새로고침해도 대기 중인 내용은 유지됩니다.</li>
         <li><strong>사진</strong> — 시공 전/후 사진을 각각 촬영하거나 파일로 선택. 상세보기에서 사진을 탭하면 원본 크기로 확대됩니다. 전/후 사진이 둘 다 채워지면 상태가 자동으로 "완료"로 제안됩니다(강제 아님, 저장 전 언제든 직접 바꿀 수 있음).</li>
+        <li><strong>검색/필터</strong> — 상단 🔎 검색창에 호수(예: 1501), 결함내용, 업체명 등을 입력하면 즉시 걸러집니다. 🔍 필터 시트에서 "👥 등록자별 요약"을 눌러 담당자별 건수를 확인하고 필터링할 수도 있습니다.</li>
         <li><strong>삭제</strong> — 상세보기 모달 하단 "🗑️ 삭제" 버튼. 실제로 지워지는 게 아니라 목록에서만 안 보이게 처리되어, 필요하면 나중에 복구할 수 있습니다.</li>
-        <li><strong>출력</strong> — 헤더의 📊 버튼은 사진 URL 포함 엑셀(CSV) 내보내기, 🖨️ 버튼은 인쇄용 표 화면을 새 창으로 열어 바로 인쇄합니다. 노트북에서 접속해도 등록·수정·삭제·출력 전부 동일하게 됩니다.</li>
-        <li><strong>등록자/수정자 기록</strong> — 처음 저장할 때 이름을 한 번 물어보고, 이후 등록/수정할 때마다 자동으로 기록됩니다(상세보기에 표시). 아래 버튼으로 언제든 바꿀 수 있습니다.</li>
-        <li><strong>1호와의 차이</strong> — 이 화면은 모바일 터치 전용 카드 화면입니다(다현장 관리 등 일부 고급 기능은 기존 1호에만 있음).</li>
+        <li><strong>출력 및 일괄 올리기</strong> — 헤더의 📊 버튼은 사진이 직접 삽입된 엑셀(.xlsx) 내보내기, 📥 버튼은 엑셀(CSV) 양식 일괄 업로드, 🖨️ 버튼은 인쇄용 표 화면을 새 창으로 열어 바로 인쇄합니다.</li>
+        <li><strong>등록자/수정자 기록</strong> — 구글 로그인을 하거나 아래 버튼으로 이름을 설정해두면 등록/수정할 때마다 자동으로 기록됩니다(카드 및 상세보기에 표시).</li>
       </ol>
       <button class="btn btn-ghost" style="margin-top:14px;" onclick="changeUserName()">👤 내 이름 변경</button>
     </div>
@@ -352,6 +368,8 @@
           <button type="button" class="btn photo-clear-btn" id="clear-after-btn" style="display:none;" onclick="clearPendingPhoto('after')">되돌리기</button>
         </div>
       </div>
+
+      <button type="button" class="btn btn-ghost" id="btn-fill-last-loc" style="display:none; margin-bottom:14px; font-size:0.9rem; padding:10px 12px; border-color:var(--primary); color:var(--primary);" onclick="applyLastLocation()">📌 직전 등록 위치 불러오기</button>
 
       <div class="field-group">
         <label>공구</label>
@@ -398,9 +416,10 @@
       <div class="field-group">
         <label>하자 유형</label>
         <select id="fi-type">
-          <option value="파손">파손</option><option value="미시공">미시공</option>
-          <option value="오시공">오시공</option><option value="오염/흠집">오염/흠집</option>
-          <option value="기능불량">기능불량</option><option value="기타">기타</option>
+          <option value="파손">파손</option><option value="마감불량">마감불량</option>
+          <option value="미시공">미시공</option><option value="오시공">오시공</option>
+          <option value="오염/흠집">오염/흠집</option><option value="기능불량">기능불량</option>
+          <option value="기타">기타</option>
         </select>
       </div>
       <div class="field-group">
@@ -595,9 +614,27 @@ function gasCallRaw_(action, params) {
   return callJsonp(action, params);
 }
 let passcodePromptCanceled_ = false;
+// 2026-11-06 구글 로그인(ID 토큰)은 약 1시간 뒤 만료되는데, 예전엔 만료된 토큰을 브라우저에 계속 두고 보내서
+// 서버가 조용히 무시하고 ACCESS_DENIED → 비밀번호 입력창이 계속 떴다. 보내기 전에 만료를 확인해 지우고,
+// 안내만 한다(비밀번호를 아직 한 번도 안 넣은 로그인 사용자에겐 입력창을 띄우지 않는다).
+let googleLoginExpired_ = false;
+function idTokenExpired_(token) {
+  try {
+    const exp = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp;
+    return typeof exp === 'number' && exp * 1000 < Date.now() + 30000;
+  } catch (e) { return false; } // 해독 못 하면 서버 판단에 맡김
+}
+function expireGoogleLogin_() {
+  try { localStorage.removeItem(GIS_ID_TOKEN_KEY); } catch (e) {}
+  const first = !googleLoginExpired_;
+  googleLoginExpired_ = true;
+  updateGisLoginUi_();
+  if (first) toast('🔒 구글 로그인이 만료됐습니다 — 위의 "구글 계정으로 로그인"을 다시 눌러주세요.');
+}
 async function gasCall(action, params) {
   const passcode = getStoredPasscode_();
-  const idToken = getStoredIdToken_();
+  let idToken = getStoredIdToken_();
+  if (idToken && idTokenExpired_(idToken)) { expireGoogleLogin_(); idToken = ''; }
   try {
     return await gasCallRaw_(action, Object.assign({}, params, { passcode, idToken }));
   } catch (e) {
@@ -608,6 +645,8 @@ async function gasCall(action, params) {
       const latest = getStoredPasscode_();
       if (latest && latest !== passcode) return await gasCallRaw_(action, Object.assign({}, params, { passcode: latest, idToken }));
       if (passcodePromptCanceled_) throw e;
+      // 로그인이 만료된 사용자는 비밀번호를 쓴 적이 없으면 입력창 대신 재로그인 안내만(위 토스트)
+      if (googleLoginExpired_ && !latest && !passcode) throw e;
       // 비번창은 🔄 누를 때까지 1번만 — 틀린 값/빈칸으로 확인해도 주기적 새로고침마다 또 뜨지 않게(2026-10-09 태야 폰 2차)
       passcodePromptCanceled_ = true;
       const newPass = promptForPasscode_('🔒 비밀번호가 틀렸거나 없습니다(또는 로그인이 만료됐습니다). 비밀번호를 입력하거나, 위의 "구글 계정으로 로그인" 버튼을 다시 눌러주세요:');
@@ -643,6 +682,7 @@ function signOutGoogle_() {
 }
 function handleGisCredentialResponse_(response) {
   try { localStorage.setItem(GIS_ID_TOKEN_KEY, response.credential); } catch (e) {}
+  googleLoginExpired_ = false; passcodePromptCanceled_ = false;
   document.getElementById('gis-button-container').style.display = 'none';
   updateGisLoginUi_();
   toast('✅ 구글 로그인 완료 — 이제 등록/수정 시 이 계정으로 기록됩니다.');
@@ -1010,7 +1050,7 @@ async function loadList(showBusy) {
     // 15초 자동새로고침마다 같은 경고가 반복되지 않게 — 상태가 바뀌었거나 🔄로 직접 눌렀을 때만 알림
     if (prevFailed === serverLoadFailed && !showBusy) { /* 같은 실패 반복: 화면 안내문만 유지 */ }
     else if (serverLoadFailed === 'denied' && !serverList.length) {
-      toast('🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다 — 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.');
+      toast(googleLoginExpired_ ? '🔒 구글 로그인이 만료됐습니다 — 위의 "구글 계정으로 로그인"을 다시 눌러주세요.' : '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다 — 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.');
     } else if (!serverList.length) {
       toast('⚠️ 서버에 연결하지 못했습니다 — 잠시 후 🔄 새로고침을 눌러주세요 (' + (lastErr.message || lastErr) + ')');
     } else {
@@ -1086,8 +1126,20 @@ function updateSelectOptions(id, values, allLabel) {
   sel.value = cur;
 }
 function onTradeFilterChange() { applyFilters(); }
+function onSearchInput() {
+  const clearBtn = document.getElementById('f-search-clear');
+  if (clearBtn) clearBtn.style.display = v('f-search').trim() ? 'flex' : 'none';
+  applyFilters();
+}
+function clearSearch() {
+  const el = document.getElementById('f-search');
+  if (el) el.value = '';
+  onSearchInput();
+}
 function resetFilters() {
-  ['f-gonggu','f-dong','f-loc','f-trade','f-subtrade','f-status','f-vendor','f-reg'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['f-gonggu','f-dong','f-loc','f-trade','f-subtrade','f-status','f-vendor','f-reg','f-search'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const clearBtn = document.getElementById('f-search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
   applyFilters();
 }
 function filterByStat(status) {
@@ -1099,7 +1151,9 @@ function filterByStat(status) {
 function applyFilters() {
   const list = getRenderList();
   const gonggu = v('f-gonggu'), dong = v('f-dong'), loc = v('f-loc'), trade = v('f-trade'),
-        subtrade = v('f-subtrade'), status = v('f-status'), vendor = v('f-vendor'), reg = v('f-reg');
+        subtrade = v('f-subtrade'), status = v('f-status'), vendor = v('f-vendor'), reg = v('f-reg'),
+        searchRaw = v('f-search').trim().toLowerCase();
+  const keywords = searchRaw ? searchRaw.split(/\s+/).filter(Boolean) : [];
 
   filteredList = list.filter(it => {
     if (gonggu && String(it['공구']||'') !== gonggu) return false;
@@ -1110,6 +1164,14 @@ function applyFilters() {
     if (status && String(it['상태']||'') !== status) return false;
     if (vendor && String(it['업체명']||'') !== vendor) return false;
     if (reg && regOf_(it) !== reg) return false;
+    if (keywords.length) {
+      const hay = [
+        '#' + (it['ID'] || ''), it['ID'], it['공구'], it['동'], it['호수'], it['동호수'],
+        it['위치'], it['공종'], it['세부공종'], it['유형'],
+        it['내용'], it['결함내용'], it['지적사항'], it['업체명'], it['등록자']
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!keywords.every(kw => hay.includes(kw))) return false;
+    }
     return true;
   });
 
@@ -1118,8 +1180,11 @@ function applyFilters() {
   updateSyncIndicator();
 
   const filterBtn = document.getElementById('filter-trigger-btn');
-  const anyFilterActive = !!(gonggu||dong||loc||trade||subtrade||status||vendor||reg);
-  if (filterBtn) filterBtn.classList.toggle('has-active', anyFilterActive);
+  const activeCount = [gonggu, dong, loc, trade, subtrade, status, vendor, reg].filter(Boolean).length;
+  if (filterBtn) {
+    filterBtn.classList.toggle('has-active', activeCount > 0);
+    filterBtn.textContent = activeCount > 0 ? `🔍 필터 (${activeCount})` : '🔍 필터';
+  }
 }
 function updateStats(list) {
   document.getElementById('st-total').textContent = list.length;
@@ -1138,7 +1203,7 @@ function renderCards(items) {
     wrap.innerHTML = '';
     // 서버 실패로 목록 자체를 못 받은 경우, "펀치 없음"으로 보이면 데이터가 날아간 걸로 오해함(2026-10-09)
     empty.innerHTML = (serverLoadFailed === 'denied' && !serverList.length)
-      ? '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.'
+      ? (googleLoginExpired_ ? '🔒 구글 로그인이 만료되어 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 위의 "구글 계정으로 로그인"을 다시 눌러주세요.' : '🔒 비밀번호가 맞지 않아 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 🔄 버튼을 누르고 비밀번호를 다시 입력해주세요.')
       : (serverLoadFailed && !serverList.length)
       ? '⚠️ 서버에 연결하지 못해 목록을 불러오지 못했습니다.<br>데이터가 지워진 것은 아닙니다. 잠시 후 🔄 버튼을 눌러주세요.'
       : '등록된 펀치가 없습니다.<br>오른쪽 아래 + 버튼으로 새로 등록하세요.';
@@ -1155,10 +1220,15 @@ function cardHtml(it) {
   const dongHo = esc(dongHoRaw);
   const loc = esc(it['위치'] || '미정');
   const tradeStr = esc((it['공종']||'미정') + (it['세부공종'] ? ' · ' + it['세부공종'] : ''));
+  const defectType = it['유형'] || '';
   const vendor = it['업체명'] || '';
   const content = esc(it['내용'] || '');
   const status = it['상태'] || '신규';
   let stClass = 'badge-new'; if (status === '조치중') stClass = 'badge-proc'; if (status === '완료') stClass = 'badge-done';
+
+  const regBy = String(it['등록자'] || '').trim();
+  const regDate = String(it['등록일'] || '').trim();
+  const regInfo = [regBy ? ('👤 ' + esc(regBy)) : '', regDate ? ('🕒 ' + esc(regDate)) : ''].filter(Boolean).join(' · ');
 
   const photoBefore = it['시공전사진URL'] || '';
   const photoAfter  = it['시공후사진URL'] || '';
@@ -1175,7 +1245,8 @@ function cardHtml(it) {
         ${syncChip}
       </div>
       <div class="p-card-loc">${dongHo} <span class="p-card-sub">· ${loc}</span></div>
-      <div class="p-card-meta">${tradeStr}${vendor ? ' · ' + esc(vendor) : ''}</div>
+      <div class="p-card-meta">${tradeStr}${defectType ? ' · ' + esc(defectType) : ''}${vendor ? ' · ' + esc(vendor) : ''}</div>
+      ${regInfo ? `<div class="p-card-reg">${regInfo}</div>` : ''}
       ${content ? `<div class="p-card-content">${content}</div>` : ''}
       <div class="p-card-photos">
         ${photoSlotHtml('시공 전', photoBefore, dongHoRaw)}
@@ -1267,6 +1338,67 @@ function onFormTradeChange() {
   populateVendorDatalist(tr);
 }
 
+// 기존 항목 수정 시 <select> 기본 옵션에 없는 값(CSV 업로드·시트 직접 입력 등)이 들어있을 때
+// .value 대입으로 값이 날아가지 않도록 동적으로 option을 보강한 뒤 선택한다.
+function setSelectValueSafe_(id, val, fallback = '') {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const target = (val !== undefined && val !== null && String(val) !== '') ? String(val) : fallback;
+  if (target && !Array.from(sel.options).some(o => o.value === target)) {
+    const opt = document.createElement('option');
+    opt.value = target;
+    opt.textContent = target;
+    sel.appendChild(opt);
+  }
+  sel.value = target;
+}
+
+// ── 연속 등록 시 직전 위치·공종 원터치 불러오기 ─────────────────────
+const LAST_LOC_KEY_ = 'PUNCH_LAST_LOC_V1';
+function getLastLocation_() {
+  try {
+    const raw = localStorage.getItem(LAST_LOC_KEY_ + '_' + currentSite);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function saveLastLocation_(fields) {
+  if (!fields['공구'] && !fields['동'] && !fields['호수'] && !fields['위치'] && !fields['공종']) return;
+  try {
+    localStorage.setItem(LAST_LOC_KEY_ + '_' + currentSite, JSON.stringify({
+      gonggu: fields['공구'] || '',
+      dong: fields['동'] || '',
+      ho: fields['호수'] || '',
+      loc: fields['위치'] || '',
+      trade: fields['공종'] || '',
+      subtrade: fields['세부공종'] || '',
+      vendor: fields['업체명'] || ''
+    }));
+  } catch (e) {}
+}
+function updateLastLocButton_() {
+  const btn = document.getElementById('btn-fill-last-loc');
+  if (!btn) return;
+  if (!isAddMode) { btn.style.display = 'none'; return; }
+  const last = getLastLocation_();
+  if (!last) { btn.style.display = 'none'; return; }
+  const summary = [last.dong, last.ho, last.loc, last.trade].filter(Boolean).join(' · ') || last.gonggu || '직전 입력값';
+  btn.textContent = `📌 직전 위치 불러오기 (${summary})`;
+  btn.style.display = 'inline-flex';
+}
+function applyLastLocation() {
+  const last = getLastLocation_();
+  if (!last) { toast('직전에 저장된 위치 정보가 없습니다.'); return; }
+  setSelectValueSafe_('fi-gonggu', last.gonggu, '');
+  setSelectValueSafe_('fi-dong', last.dong, '');
+  document.getElementById('fi-ho').value = last.ho || '';
+  setSelectValueSafe_('fi-loc', last.loc, '');
+  setSelectValueSafe_('fi-trade', last.trade, '');
+  onFormTradeChange();
+  if (last.subtrade) setSelectValueSafe_('fi-subtrade', last.subtrade, '기타');
+  if (last.vendor) document.getElementById('fi-vendor').value = last.vendor;
+  toast('📌 직전 위치·공종 정보를 채웠습니다.');
+}
+
 function openAddModal() {
   isAddMode = true; currentEditId = null; currentEditTaskQid = null;
   resetPhotoFormState();
@@ -1274,10 +1406,12 @@ function openAddModal() {
   document.getElementById('modal-save-btn').textContent = '💾 신규 등록하기';
   document.getElementById('modal-delete-btn').style.display = 'none';
   document.getElementById('modal-sync-note').innerHTML = '';
+  populateDongOptions();
   ['fi-gonggu','fi-dong','fi-ho','fi-loc','fi-trade','fi-vendor','fi-content'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('fi-type').value = '파손';
   document.getElementById('fi-status').value = '신규';
   onFormTradeChange();
+  updateLastLocButton_();
   renderPhotoPreviews();
   document.getElementById('punch-modal').classList.remove('hidden');
 }
@@ -1301,6 +1435,7 @@ function openEditModal(id) {
   document.getElementById('modal-title').textContent = `✏️ 펀치 상세정보 (#${esc(id)})`;
   document.getElementById('modal-save-btn').textContent = '💾 변경사항 저장';
   document.getElementById('modal-delete-btn').style.display = 'block';
+  updateLastLocButton_();
 
   const noteEl = document.getElementById('modal-sync-note');
   let noteHtml = '';
@@ -1308,21 +1443,23 @@ function openEditModal(id) {
     noteHtml += `<div class="card-sync-note fail">⚠️ 이전 저장이 실패했습니다: ${esc(item._syncError||'')}<br>내용을 확인하고 다시 저장하면 재시도됩니다.</div>`;
   }
   const regBits = [];
-  if (item['등록자']) regBits.push('등록: ' + esc(item['등록자']));
+  if (item['등록일']) regBits.push('등록일: ' + esc(item['등록일']));
+  if (item['등록자']) regBits.push('등록자: ' + esc(item['등록자']));
   if (item['최종수정자']) regBits.push('수정: ' + esc(item['최종수정자']) + (item['최종수정일시'] ? ' · ' + esc(item['최종수정일시']) : ''));
   if (regBits.length) noteHtml += `<div class="field-hint" style="margin-bottom:12px;">${regBits.join(' · ')}</div>`;
   noteEl.innerHTML = noteHtml;
 
-  document.getElementById('fi-gonggu').value = item['공구'] || '';
-  document.getElementById('fi-dong').value = item['동'] || '';
+  populateDongOptions();
+  setSelectValueSafe_('fi-gonggu', item['공구'] || '', '');
+  setSelectValueSafe_('fi-dong', item['동'] || '', '');
   document.getElementById('fi-ho').value = item['호수'] || '';
-  document.getElementById('fi-loc').value = item['위치'] || '';
-  document.getElementById('fi-trade').value = item['공종'] || '';
+  setSelectValueSafe_('fi-loc', item['위치'] || '', '');
+  setSelectValueSafe_('fi-trade', item['공종'] || '', '');
   onFormTradeChange();
-  document.getElementById('fi-subtrade').value = item['세부공종'] || '';
-  document.getElementById('fi-type').value = item['유형'] || '파손';
+  setSelectValueSafe_('fi-subtrade', item['세부공종'] || '', '기타');
+  setSelectValueSafe_('fi-type', item['유형'] || '파손', '파손');
   document.getElementById('fi-vendor').value = item['업체명'] || '';
-  document.getElementById('fi-status').value = item['상태'] || '신규';
+  setSelectValueSafe_('fi-status', item['상태'] || '신규', '신규');
   document.getElementById('fi-content').value = item['내용'] || '';
 
   renderPhotoPreviews();
@@ -1370,6 +1507,7 @@ function saveFromModal() {
   const photos = { before: pendingPhotoBefore, after: pendingPhotoAfter };
   const userName = getUserName();
   if (isAddMode) fields['등록자'] = userName; else fields['최종수정자'] = userName;
+  saveLastLocation_(fields);
 
   if (isAddMode) {
     const dup = findLikelyDuplicate_(fields);
@@ -1548,7 +1686,7 @@ function pickRegFromSummary(name) {
   closeRegSummary();
   applyFilters();
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  toast('👥 "' + name + '" 건만 표시 중 — 📊로 이 사람 건만 CSV 저장');
+  toast('👥 "' + name + '" 건만 표시 중 — 📊로 이 사람 건만 사진 포함 엑셀(.xlsx) 저장');
 }
 
 // ── 엑셀(CSV) 올리기(2026-11-09) — 한 줄 = 한 건, 기존 enqueueAdd 경로(낙관적UI+동기화큐) 그대로 사용 ──
@@ -1648,6 +1786,17 @@ function drivePhotoId_(url) {
   return m ? m[1] : '';
 }
 async function fetchPhotoBytes_(url) {
+  // 아직 서버 업로드 전인 로컬 촬영 사진(data:image/...;base64,...)도 엑셀 내보내기 시 즉시 변환해 삽입
+  if (typeof url === 'string' && url.startsWith('data:image/')) {
+    try {
+      const m = url.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (!m) return null;
+      const bin = atob(m[2]);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes.byteLength ? { buf: bytes.buffer, ext: /png/i.test(m[1]) ? 'png' : 'jpeg' } : null;
+    } catch (e) { return null; }
+  }
   const id = drivePhotoId_(url);
   if (!id) return null;
   try {
@@ -1769,13 +1918,14 @@ function printReport() {
   const rows = filteredList.map(i => `
     <tr>
       <td>${esc(i['ID']||'')}</td>
-      <td>${esc(i['동']||'')} ${esc(i['호수']||'')}</td>
+      <td>${esc(i['동호수'] || ((i['동']||'') + ' ' + (i['호수']||'')).trim())}</td>
       <td>${esc(i['위치']||'')}</td>
       <td>${esc(i['공종']||'')}</td>
       <td>${esc(i['유형']||'')}</td>
       <td>${esc(i['내용']||i['결함내용']||i['지적사항']||'')}</td>
       <td>${esc(i['상태']||'')}</td>
       <td>${esc(i['업체명']||'')}</td>
+      <td>${esc(i['등록자']||'')}</td>
       <td>${esc(i['등록일']||'')}</td>
     </tr>`).join('');
   const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>스마트 펀치리스트 인쇄용</title>
@@ -1789,8 +1939,8 @@ function printReport() {
   @media print { @page { size: A4 landscape; margin: 10mm; } }
 </style></head><body>
 <h1>스마트 펀치리스트 (모바일 2호)</h1>
-<div class="meta">출력일: ${esc(new Date().toLocaleString('ko-KR'))} · 총 ${filteredList.length}건</div>
-<table><thead><tr><th>ID</th><th>동호수</th><th>위치</th><th>공종</th><th>유형</th><th>내용</th><th>상태</th><th>업체명</th><th>등록일</th></tr></thead>
+<div class="meta">출력일: ${esc(new Date().toLocaleString('ko-KR'))} · 현장: ${esc(currentSite)} · 총 ${filteredList.length}건</div>
+<table><thead><tr><th>ID</th><th>동호수</th><th>위치</th><th>공종</th><th>유형</th><th>내용</th><th>상태</th><th>업체명</th><th>등록자</th><th>등록일</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <script>window.onload = () => window.print();<\/script>
 </body></html>`;
