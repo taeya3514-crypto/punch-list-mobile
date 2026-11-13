@@ -382,11 +382,13 @@
       </div>
       <div class="field-group">
         <label>동</label>
-        <select id="fi-dong"><option value="">미정 (나중에 입력)</option></select>
+        <select id="fi-dong" onchange="onFormDongChange()"><option value="">미정 (나중에 입력)</option></select>
       </div>
       <div class="field-group">
         <label>호수 / 세부위치</label>
-        <input type="text" id="fi-ho" inputmode="text" placeholder="예: 101 또는 지하1층 기계실">
+        <input type="text" id="fi-ho" list="ho-datalist" oninput="onFormHoInput()" inputmode="text" placeholder="예: 1501 또는 지하1층 기계실">
+        <datalist id="ho-datalist"></datalist>
+        <div class="field-hint" id="fi-ho-hint"></div>
       </div>
       <div class="field-group">
         <label>위치 / 세부장소</label>
@@ -461,6 +463,62 @@ let currentSite = localStorage.getItem(CURRENT_SITE_KEY) || DEFAULT_SITE;
 let siteList = [];
 const STORAGE_KEY = 'punchlist_mobile_queue_v1';
 const DEFAULT_DONG_LIST = ['101동','102동','103동','104동','105동','106동','107동','108동','지하1층','지하2층','지하3층','상가동'];
+
+// 2026-11-13 양주역푸르지오 전체 1,172세대(101동~108동, 층·라인·호수·평형) 마스터 데이터
+// 각 항목: [라인번호, 최저층, 최고층, 평형] -> 호수 = 층*100 + 라인 (총 1,172세대 100% 일치)
+const YANGJU_UNIT_RULES_ = {
+  '101동': [[1,1,27,'59A'],[2,1,27,'59A'],[3,1,29,'59B'],[4,2,29,'59D'],[5,2,29,'59A'],[6,1,29,'59A']],
+  '102동': [[1,1,29,'59A'],[2,1,29,'59B'],[3,2,29,'59D'],[4,1,29,'59A'],[5,1,29,'59C']],
+  '103동': [[1,1,29,'59D'],[2,1,29,'84B'],[3,2,29,'59A'],[4,2,29,'59A'],[5,1,22,'59C']],
+  '104동': [[1,1,29,'84A'],[2,1,29,'84C'],[3,1,29,'84B'],[4,2,29,'84A']],
+  '105동': [[1,1,26,'84A'],[2,1,27,'84C'],[3,1,27,'84B'],[4,2,23,'84A']],
+  '106동': [[1,1,29,'59C'],[2,1,29,'59A'],[3,1,29,'84B'],[4,2,29,'59A'],[5,1,29,'59A'],[6,1,28,'59C']],
+  '107동': [[1,1,28,'59A'],[2,1,28,'59A'],[3,1,29,'59B'],[4,2,29,'59D'],[5,1,29,'59A'],[6,1,26,'59A']],
+  '108동': [[1,1,23,'59C'],[2,1,29,'59A'],[3,2,29,'59A'],[4,1,29,'59B'],[5,1,29,'59A'],[6,1,29,'59C']]
+};
+const UNIT_MAP_BY_DONG_ = {};
+const UNIT_LIST_BY_DONG_ = {};
+(function buildYangjuUnitMaster_() {
+  Object.keys(YANGJU_UNIT_RULES_).forEach(dong => {
+    const map = {};
+    const list = [];
+    YANGJU_UNIT_RULES_[dong].forEach(([line, minF, maxF, type]) => {
+      for (let f = maxF; f >= minF; f--) {
+        const ho = String(f * 100 + line);
+        const info = { dong, floor: f, line, ho, type };
+        map[ho] = info;
+        list.push(info);
+      }
+    });
+    UNIT_MAP_BY_DONG_[dong] = map;
+    UNIT_LIST_BY_DONG_[dong] = list;
+  });
+})();
+
+function normalizeDongKey_(dongRaw) {
+  const s = String(dongRaw || '').trim();
+  if (/^10[1-8]$/.test(s)) return s + '동';
+  return s;
+}
+function normalizeHoKey_(hoRaw) {
+  const m = String(hoRaw || '').trim().match(/^(\d{3,4})\s*호?$/);
+  return m ? m[1] : '';
+}
+function lookupUnitInfo_(dongRaw, hoRaw) {
+  if (currentSite && currentSite !== DEFAULT_SITE) return null;
+  const dong = normalizeDongKey_(dongRaw);
+  const dongMap = UNIT_MAP_BY_DONG_[dong];
+  if (!dongMap) return null;
+  const hoTrim = String(hoRaw || '').trim();
+  if (!hoTrim) return null;
+  const hoKey = normalizeHoKey_(hoTrim);
+  if (hoKey && dongMap[hoKey]) return dongMap[hoKey];
+  // 동이 101~108동이고 입력값이 숫자(또는 '숫자+호')인데 세대 마스터에 없으면 오기입(필로티·초과층 등)
+  if (/^\d+\s*호?$/.test(hoTrim)) {
+    return { invalid: true, dong, hoInput: hoTrim };
+  }
+  return null;
+}
 const TRADES = {
   '건축': ['창호','조적','미장','방수','타일','수납가구','도배','마루','기타'],
   '기계': ['위생','배관','덕트','보일러','기타'],
@@ -1165,8 +1223,10 @@ function applyFilters() {
     if (vendor && String(it['업체명']||'') !== vendor) return false;
     if (reg && regOf_(it) !== reg) return false;
     if (keywords.length) {
+      const uInfo = lookupUnitInfo_(it['동'], it['호수']);
+      const uType = (uInfo && !uInfo.invalid) ? `${uInfo.type} ${uInfo.floor}층 ${uInfo.line}라인` : '';
       const hay = [
-        '#' + (it['ID'] || ''), it['ID'], it['공구'], it['동'], it['호수'], it['동호수'],
+        '#' + (it['ID'] || ''), it['ID'], it['공구'], it['동'], it['호수'], it['동호수'], uType,
         it['위치'], it['공종'], it['세부공종'], it['유형'],
         it['내용'], it['결함내용'], it['지적사항'], it['업체명'], it['등록자']
       ].filter(Boolean).join(' ').toLowerCase();
@@ -1218,6 +1278,8 @@ function cardHtml(it) {
   const idLabel = it._tempNew ? '신규' : ('#' + esc(id));
   const dongHoRaw = it['동호수'] || ((it['동']||'') + ' ' + (it['호수']||'')).trim() || '미정';
   const dongHo = esc(dongHoRaw);
+  const unitInfo = lookupUnitInfo_(it['동'], it['호수']);
+  const unitBadge = (unitInfo && !unitInfo.invalid) ? ` <span style="font-size:0.88rem; color:var(--primary); font-weight:800;">(${esc(unitInfo.type)})</span>` : '';
   const loc = esc(it['위치'] || '미정');
   const tradeStr = esc((it['공종']||'미정') + (it['세부공종'] ? ' · ' + it['세부공종'] : ''));
   const defectType = it['유형'] || '';
@@ -1244,7 +1306,7 @@ function cardHtml(it) {
         <div class="p-card-id">${idLabel} <span class="badge ${stClass}">${status}</span></div>
         ${syncChip}
       </div>
-      <div class="p-card-loc">${dongHo} <span class="p-card-sub">· ${loc}</span></div>
+      <div class="p-card-loc">${dongHo}${unitBadge} <span class="p-card-sub">· ${loc}</span></div>
       <div class="p-card-meta">${tradeStr}${defectType ? ' · ' + esc(defectType) : ''}${vendor ? ' · ' + esc(vendor) : ''}</div>
       ${regInfo ? `<div class="p-card-reg">${regInfo}</div>` : ''}
       ${content ? `<div class="p-card-content">${content}</div>` : ''}
@@ -1330,6 +1392,46 @@ async function onPhotoFileChange(e, type) {
   }
 }
 
+function onFormDongChange() {
+  const dong = normalizeDongKey_(v('fi-dong'));
+  const dl = document.getElementById('ho-datalist');
+  if (dl) {
+    const units = (currentSite === DEFAULT_SITE && UNIT_LIST_BY_DONG_[dong]) ? UNIT_LIST_BY_DONG_[dong] : [];
+    dl.innerHTML = units.map(u => `<option value="${u.ho}">${u.ho}호 (${u.type} · ${u.floor}층 ${u.line}라인)</option>`).join('');
+  }
+  onFormHoInput();
+}
+function onFormHoInput() {
+  const hint = document.getElementById('fi-ho-hint');
+  if (!hint) return;
+  const dong = normalizeDongKey_(v('fi-dong'));
+  const hoRaw = v('fi-ho').trim();
+  const units = (currentSite === DEFAULT_SITE && UNIT_LIST_BY_DONG_[dong]) ? UNIT_LIST_BY_DONG_[dong] : null;
+  if (!units) {
+    hint.textContent = '';
+    hint.style.color = 'var(--text-muted)';
+    return;
+  }
+  if (!hoRaw) {
+    const rules = YANGJU_UNIT_RULES_[dong] || [];
+    const maxF = Math.max(...rules.map(r => r[2]));
+    hint.textContent = `💡 ${dong} (총 ${units.length}세대, 1~${rules.length}라인, 최고 ${maxF}층) — 호수를 입력하거나 목록에서 선택하세요`;
+    hint.style.color = 'var(--text-muted)';
+    return;
+  }
+  const info = lookupUnitInfo_(dong, hoRaw);
+  if (info && !info.invalid) {
+    hint.textContent = `✅ ${info.dong} ${info.ho}호 · ${info.type}타입 (${info.floor}층 ${info.line}라인)`;
+    hint.style.color = 'var(--success)';
+  } else if (info && info.invalid) {
+    hint.textContent = `⚠️ ${dong}에는 "${hoRaw}" 세대가 없습니다 (필로티 세대이거나 층·라인 범위 초과)`;
+    hint.style.color = '#f87171';
+  } else {
+    hint.textContent = `ℹ️ 세대 호수가 아닌 세부위치("${hoRaw}")로 기록됩니다`;
+    hint.style.color = 'var(--text-muted)';
+  }
+}
+
 function onFormTradeChange() {
   const tr = v('fi-trade');
   const subSel = document.getElementById('fi-subtrade');
@@ -1391,6 +1493,7 @@ function applyLastLocation() {
   setSelectValueSafe_('fi-gonggu', last.gonggu, '');
   setSelectValueSafe_('fi-dong', last.dong, '');
   document.getElementById('fi-ho').value = last.ho || '';
+  onFormDongChange();
   setSelectValueSafe_('fi-loc', last.loc, '');
   setSelectValueSafe_('fi-trade', last.trade, '');
   onFormTradeChange();
@@ -1410,6 +1513,7 @@ function openAddModal() {
   ['fi-gonggu','fi-dong','fi-ho','fi-loc','fi-trade','fi-vendor','fi-content'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('fi-type').value = '파손';
   document.getElementById('fi-status').value = '신규';
+  onFormDongChange();
   onFormTradeChange();
   updateLastLocButton_();
   renderPhotoPreviews();
@@ -1453,6 +1557,7 @@ function openEditModal(id) {
   setSelectValueSafe_('fi-gonggu', item['공구'] || '', '');
   setSelectValueSafe_('fi-dong', item['동'] || '', '');
   document.getElementById('fi-ho').value = item['호수'] || '';
+  onFormDongChange();
   setSelectValueSafe_('fi-loc', item['위치'] || '', '');
   setSelectValueSafe_('fi-trade', item['공종'] || '', '');
   onFormTradeChange();
@@ -1504,6 +1609,12 @@ function findLikelyDuplicate_(fields) {
 
 function saveFromModal() {
   const fields = collectFormFields();
+  const unitCheck = lookupUnitInfo_(fields['동'], fields['호수']);
+  if (unitCheck && unitCheck.invalid) {
+    if (!confirm(`⚠️ ${unitCheck.dong}에는 "${fields['호수']}" 세대가 없습니다 (필로티 또는 층·라인 범위 초과).\n그래도 이대로 저장하시겠습니까?`)) {
+      return;
+    }
+  }
   const photos = { before: pendingPhotoBefore, after: pendingPhotoAfter };
   const userName = getUserName();
   if (isAddMode) fields['등록자'] = userName; else fields['최종수정자'] = userName;
