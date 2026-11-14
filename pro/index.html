@@ -24,11 +24,15 @@
   body { padding: 12px 14px 90px; max-width: 1400px; margin: 0 auto; font-size: 15px; }
   .hidden { display: none !important; }
 
-  header {
+  /* 상단 틀고정 영역 (헤더 + 검색/필터바) */
+  .sticky-top-wrap {
     position: sticky; top: 0; z-index: 900;
+    background: var(--bg); padding-top: 4px; padding-bottom: 6px;
+  }
+  header {
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 14px;
-    padding: 12px 16px; margin-bottom: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; margin-bottom: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
   }
   .hdr-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .hdr-title { font-size: 1.15rem; font-weight: 900; color: var(--primary); }
@@ -76,10 +80,17 @@
 
   .filter-bar {
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px;
-    padding: 10px; margin-bottom: 12px;
-    display: grid; grid-template-columns: 2fr repeat(5, 1fr) auto; gap: 8px; align-items: center;
+    padding: 9px 10px; margin-bottom: 4px;
+    display: grid; grid-template-columns: 2fr repeat(5, 1fr) auto; gap: 6px; align-items: center;
   }
-  @media (max-width: 960px) { .filter-bar { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 960px) {
+    .filter-bar { grid-template-columns: 1fr 1fr; }
+    .sticky-top-wrap { position: static; } /* 모바일에서는 필터바만 sticky 또는 스크롤 공간 확보 */
+  }
+  .chk-cell { width: 34px; text-align: center; }
+  .chk-box { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; vertical-align: middle; }
+  .sel-bar { display: none; align-items: center; gap: 8px; background: rgba(56,189,248,0.12); border: 1px solid var(--primary); border-radius: 10px; padding: 6px 12px; margin-bottom: 8px; font-size: 0.84rem; font-weight: 800; }
+  .sel-bar.show { display: flex; flex-wrap: wrap; }
 
   .tbl-wrap { background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px; overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
@@ -148,6 +159,7 @@
 </head>
 <body>
 
+<div class="sticky-top-wrap">
 <header>
   <div class="hdr-left">
     <div class="hdr-title">🏢 스마트 펀치리스트 PRO <span style="font-size:0.75rem;color:var(--text-muted);">(Google Sheets 무료 통합판)</span></div>
@@ -166,6 +178,20 @@
 </header>
 <div id="gis-container" style="display:none; margin-bottom:10px;"></div>
 
+<div class="filter-bar">
+  <input id="f-search" placeholder="🔍 통합검색 (동/호수/평형/공종/내용/업체)" oninput="applyFilters()">
+  <select id="f-dong" onchange="applyFilters()"><option value="">전체 동</option></select>
+  <select id="f-trade" onchange="applyFilters()"><option value="">전체 공종</option></select>
+  <select id="f-status" onchange="applyFilters()">
+    <option value="">전체 상태</option>
+    <option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option>
+  </select>
+  <select id="f-vendor" onchange="applyFilters()"><option value="">전체 업체</option></select>
+  <select id="f-reg" onchange="applyFilters()"><option value="">전체 등록자</option></select>
+  <button class="btn btn-sm" onclick="resetFilters()">초기화</button>
+</div>
+</div>
+
 <div class="stats-grid">
   <div class="stat-card active" data-st="" onclick="filterStatus('')"><div class="stat-num" id="st-all">0</div><div class="stat-lbl">전체</div></div>
   <div class="stat-card" data-st="신규" onclick="filterStatus('신규')"><div class="stat-num" id="st-new" style="color:#f87171;">0</div><div class="stat-lbl">신규</div></div>
@@ -182,23 +208,18 @@
   </span>
 </div>
 
-<div class="filter-bar">
-  <input id="f-search" placeholder="🔍 통합검색 (동/호수/평형/공종/내용/업체)" oninput="applyFilters()">
-  <select id="f-dong" onchange="applyFilters()"><option value="">전체 동</option></select>
-  <select id="f-trade" onchange="applyFilters()"><option value="">전체 공종</option></select>
-  <select id="f-status" onchange="applyFilters()">
-    <option value="">전체 상태</option>
-    <option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option>
-  </select>
-  <select id="f-vendor" onchange="applyFilters()"><option value="">전체 업체</option></select>
-  <select id="f-reg" onchange="applyFilters()"><option value="">전체 등록자</option></select>
-  <button class="btn btn-sm" onclick="resetFilters()">초기화</button>
+<div id="sel-bar" class="sel-bar">
+  <span id="sel-count">0건 선택됨</span>
+  <button class="btn btn-sm btn-success" onclick="exportExcel()">📊 선택 엑셀</button>
+  <button class="btn btn-sm btn-primary" onclick="printPhotoReport()">🖨️ 선택 인쇄</button>
+  <button class="btn btn-sm" onclick="clearSelection()">선택 해제</button>
 </div>
 
 <div id="tbl-wrap" class="tbl-wrap hidden">
   <table>
     <thead>
       <tr>
+        <th class="chk-cell"><input type="checkbox" id="chk-all" class="chk-box" onchange="toggleSelectAll(this.checked)" title="현재 목록 전체 선택"></th>
         <th>ID</th><th>동/호수(평형)</th><th>위치</th><th>공종/세부</th>
         <th>내용</th><th>사진(전/후)</th><th>업체</th><th>상태</th><th>경과</th><th>등록자</th>
       </tr>
@@ -671,6 +692,45 @@ function renderVendorRanking() {
   const cur = v('f-vendor');
   document.getElementById('vendor-rank-chips').innerHTML = top.map(([n, c]) => `<button class="rank-chip ${cur===n?'active':''}" onclick="document.getElementById('f-vendor').value=document.getElementById('f-vendor').value==='${esc(n)}'?'':'${esc(n)}';applyFilters();">${esc(n)} (${c})</button>`).join('') || '<span style="font-size:0.78rem;color:var(--text-muted);">미조치 없음</span>';
 }
+let selectedIds = new Set();
+
+function updateSelectionUi() {
+  const bar = document.getElementById('sel-bar');
+  const cnt = document.getElementById('sel-count');
+  const chkAll = document.getElementById('chk-all');
+  const n = selectedIds.size;
+  if (bar && cnt) {
+    bar.classList.toggle('show', n > 0);
+    cnt.textContent = `${n}건 선택됨`;
+  }
+  if (chkAll) {
+    chkAll.checked = filteredList.length > 0 && filteredList.every(it => selectedIds.has(String(it['ID'])));
+  }
+}
+function toggleRowSelect(id, checked) {
+  const key = String(id);
+  if (checked) selectedIds.add(key); else selectedIds.delete(key);
+  updateSelectionUi();
+}
+function toggleSelectAll(checked) {
+  filteredList.forEach(it => {
+    const key = String(it['ID']);
+    if (checked) selectedIds.add(key); else selectedIds.delete(key);
+  });
+  renderList();
+}
+function clearSelection() {
+  selectedIds.clear();
+  renderList();
+}
+function getTargetExportList() {
+  if (selectedIds.size > 0) {
+    const sel = filteredList.filter(it => selectedIds.has(String(it['ID'])));
+    if (sel.length) return sel;
+  }
+  return filteredList;
+}
+
 function toggleViewMode() {
   viewMode = (viewMode === 'table') ? 'card' : 'table';
   localStorage.setItem('PRO_GAS_VIEW', viewMode);
@@ -678,16 +738,19 @@ function toggleViewMode() {
 }
 function renderList() {
   const tbl = document.getElementById('tbl-wrap'), card = document.getElementById('card-wrap'), empty = document.getElementById('empty-box');
-  if (!filteredList.length) { tbl.classList.add('hidden'); card.classList.add('hidden'); empty.classList.remove('hidden'); return; }
+  if (!filteredList.length) { tbl.classList.add('hidden'); card.classList.add('hidden'); empty.classList.remove('hidden'); updateSelectionUi(); return; }
   empty.classList.add('hidden');
   if (viewMode === 'table') {
     card.classList.add('hidden'); tbl.classList.remove('hidden');
     document.getElementById('tbody').innerHTML = filteredList.map(it => {
+      const idStr = String(it['ID']);
+      const isChk = selectedIds.has(idStr) ? 'checked' : '';
       const pb = it['시공전사진URL'] || it['사진URL'] || '', pa = it['시공후사진URL'] || '';
       const st = it['상태'] || '신규';
       const days = st === '완료' ? '-' : Math.max(0, Math.floor((Date.now() - new Date(it['등록일']).getTime()) / 86400000)) + '일';
-      return `<tr class="clickable" onclick="openEditModal('${esc(it['ID'])}')">
-        <td><strong>#${esc(it['ID'])}</strong></td>
+      return `<tr class="clickable" onclick="openEditModal('${esc(idStr)}')">
+        <td class="chk-cell" onclick="event.stopPropagation()"><input type="checkbox" class="chk-box" ${isChk} onchange="toggleRowSelect('${esc(idStr)}', this.checked)"></td>
+        <td><strong>#${esc(idStr)}</strong></td>
         <td><strong>${esc(it['동호수'] || ((it['동']||'')+' '+(it['호수']||'')).trim())}</strong></td>
         <td>${esc(it['위치'])}</td><td>${esc(it['공종'])}/${esc(it['세부공종'])}</td>
         <td>${esc(it['내용'])}</td>
@@ -699,12 +762,23 @@ function renderList() {
     }).join('');
   } else {
     tbl.classList.add('hidden'); card.classList.remove('hidden');
-    card.innerHTML = filteredList.map(it => `<div class="punch-card" onclick="openEditModal('${esc(it['ID'])}')">
-      <div class="punch-card-top"><div class="punch-card-title">#${esc(it['ID'])} ${esc(it['동호수'])} · ${esc(it['위치'])}</div><span class="badge st-${esc(it['상태']||'신규')}">${esc(it['상태']||'신규')}</span></div>
+    card.innerHTML = filteredList.map(it => {
+      const idStr = String(it['ID']);
+      const isChk = selectedIds.has(idStr) ? 'checked' : '';
+      return `<div class="punch-card" onclick="openEditModal('${esc(idStr)}')">
+      <div class="punch-card-top">
+        <div class="punch-card-title" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" class="chk-box" ${isChk} onclick="event.stopPropagation()" onchange="toggleRowSelect('${esc(idStr)}', this.checked)">
+          <span>#${esc(idStr)} ${esc(it['동호수'])} · ${esc(it['위치'])}</span>
+        </div>
+        <span class="badge st-${esc(it['상태']||'신규')}">${esc(it['상태']||'신규')}</span>
+      </div>
       <div class="punch-card-body"><strong>[${esc(it['공종'])}/${esc(it['세부공종'])}]</strong> ${esc(it['내용'])}</div>
       <div class="punch-card-meta"><span>🏭 ${esc(it['업체명']||'미배정')}</span><span>👤 ${esc(it['등록자']||'')} · ${esc((it['등록일']||'').slice(0,10))}</span></div>
-    </div>`).join('');
+    </div>`;
+    }).join('');
   }
+  updateSelectionUi();
 }
 
 // ── 모달 / 사진 / 저장 ──
@@ -777,6 +851,11 @@ async function onPhotoPick(ev, type) {
   }
   tempPhotos[type] = canvas.toDataURL('image/jpeg', 0.88);
   updatePhotoPreviews();
+  // 시공 전 + 시공 후 사진 2장이 모두 있으면 자동으로 상태를 '완료'로 제안
+  if (tempPhotos.before && tempPhotos.after) {
+    document.getElementById('fi-status').value = '완료';
+    toast('✅ 전·후 사진 2장이 모두 등록되어 상태가 "완료"로 자동 설정되었습니다.');
+  }
 }
 function updatePhotoPreviews() {
   ['before','after'].forEach(t => {
@@ -857,14 +936,15 @@ function handleCsvImport(ev) {
 }
 
 async function exportExcel() {
-  if (!filteredList.length) return toast('내보낼 데이터가 없습니다.');
+  const targetList = getTargetExportList();
+  if (!targetList.length) return toast('내보낼 데이터가 없습니다.');
   if (!window.ExcelJS) {
     await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
   }
   const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('펀치리스트');
   ws.columns = [{ header: 'ID', width: 8 }, { header: '동호수', width: 16 }, { header: '위치', width: 12 }, { header: '공종', width: 10 }, { header: '내용', width: 32 }, { header: '상태', width: 10 }, { header: '업체', width: 14 }, { header: '시공전', width: 20 }, { header: '시공후', width: 20 }];
-  for (let r = 0; r < filteredList.length; r++) {
-    const it = filteredList[r];
+  for (let r = 0; r < targetList.length; r++) {
+    const it = targetList[r];
     const row = ws.addRow([it['ID'], it['동호수'], it['위치'], it['공종'], it['내용'], it['상태'], it['업체명'], '', '']);
     const pb = it['시공전사진URL'] || it['사진URL'] || '', pa = it['시공후사진URL'] || '';
     if (pb || pa) row.height = 95;
@@ -890,8 +970,9 @@ async function exportExcel() {
 }
 
 function printPhotoReport() {
-  if (!filteredList.length) return toast('인쇄할 데이터가 없습니다.');
-  document.getElementById('print-area').innerHTML = filteredList.slice(0, 30).map(it => `
+  const targetList = getTargetExportList();
+  if (!targetList.length) return toast('인쇄할 데이터가 없습니다.');
+  document.getElementById('print-area').innerHTML = targetList.slice(0, 30).map(it => `
     <div class="print-page">
       <h2>🏢 스마트 펀치리스트 사진대지 (#${esc(it['ID'])})</h2>
       <table class="print-tbl">
