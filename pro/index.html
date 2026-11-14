@@ -307,6 +307,22 @@
 <div id="img-modal" class="modal-overlay hidden" onclick="this.classList.add('hidden')">
   <img id="img-modal-src" style="max-width:95vw; max-height:92vh; border-radius:10px;">
 </div>
+
+<!-- 현장 접속 비밀번호 모달 (prompt 차단 및 동시 다발 창 방지) -->
+<div id="passcode-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:380px;">
+    <div class="modal-hdr"><h3>🔒 현장 접속 비밀번호</h3></div>
+    <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:12px;">현장 접속 비밀번호를 입력해 주세요.</p>
+    <form onsubmit="submitPasscodeModal(event)">
+      <input id="passcode-input" type="password" placeholder="비밀번호 입력" autocomplete="current-password" style="margin-bottom:12px;" required>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="btn" onclick="cancelPasscodeModal()">취소</button>
+        <button type="submit" class="btn btn-primary">확인</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="print-area"></div>
 <div id="toast"></div>
 
@@ -423,6 +439,39 @@ async function callPost(action, params = {}) {
   if (!json || !json.ok) throw new Error((json && json.error) || '서버 오류');
   return json.data;
 }
+let passcodePromptPromise_ = null;
+let passcodeResolve_ = null;
+let passcodeReject_ = null;
+
+function askPasscodeOnce_() {
+  if (passcodePromptPromise_) return passcodePromptPromise_;
+  passcodePromptPromise_ = new Promise((resolve, reject) => {
+    passcodeResolve_ = resolve;
+    passcodeReject_ = reject;
+    const modal = document.getElementById('passcode-modal');
+    const inp = document.getElementById('passcode-input');
+    inp.value = '';
+    modal.classList.remove('hidden');
+    setTimeout(() => inp.focus(), 50);
+  });
+  return passcodePromptPromise_;
+}
+function submitPasscodeModal(e) {
+  e.preventDefault();
+  const pw = document.getElementById('passcode-input').value.trim();
+  document.getElementById('passcode-modal').classList.add('hidden');
+  localStorage.setItem('PUNCH_ACCESS_PASSCODE', pw);
+  const res = passcodeResolve_;
+  passcodePromptPromise_ = null; passcodeResolve_ = null; passcodeReject_ = null;
+  if (res) res(pw);
+}
+function cancelPasscodeModal() {
+  document.getElementById('passcode-modal').classList.add('hidden');
+  const rej = passcodeReject_;
+  passcodePromptPromise_ = null; passcodeResolve_ = null; passcodeReject_ = null;
+  if (rej) rej(new Error('ACCESS_DENIED'));
+}
+
 async function gasCall(action, params = {}) {
   const passcode = localStorage.getItem('PUNCH_ACCESS_PASSCODE') || '';
   const idToken = localStorage.getItem('PUNCH_GIS_ID_TOKEN') || '';
@@ -432,10 +481,12 @@ async function gasCall(action, params = {}) {
     return await fn(action, payload);
   } catch (e) {
     if (String(e.message || e).includes('ACCESS_DENIED')) {
-      const pw = prompt('🔒 현장 접속 비밀번호를 입력하세요:');
-      if (pw === null) throw e;
-      localStorage.setItem('PUNCH_ACCESS_PASSCODE', pw.trim());
-      return await fn(action, { ...payload, passcode: pw.trim() });
+      const latest = localStorage.getItem('PUNCH_ACCESS_PASSCODE') || '';
+      if (latest && latest !== passcode) {
+        return await fn(action, { ...payload, passcode: latest });
+      }
+      const pw = await askPasscodeOnce_();
+      return await fn(action, { ...payload, passcode: pw });
     }
     throw e;
   }
