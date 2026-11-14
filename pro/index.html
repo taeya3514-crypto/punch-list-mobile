@@ -172,53 +172,115 @@
     box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: none; max-width: 90vw;
   }
 
+  :root { --print-scale: 1; }
   #print-area { display: none; }
   .print-page {
-    padding: 20px; border: 3px solid #000; margin-bottom: 34px;
-    background: #fff; color: #000; border-radius: 6px;
+    padding: calc(12px * var(--print-scale, 1)) calc(16px * var(--print-scale, 1));
+    border: 2.5px solid #000;
+    margin-bottom: 18px;
+    background: #fff; color: #000; border-radius: 2px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    page-break-inside: avoid; break-inside: avoid;
   }
   .print-page h2 {
-    font-size: 14.5pt; border-bottom: 3px solid #004c97;
-    padding-bottom: 7px; margin-bottom: 14px; color: #004c97; font-weight: 900;
+    font-size: calc(12pt * var(--print-scale, 1));
+    border-bottom: 2.5px solid #000;
+    padding-bottom: 5px; margin-bottom: 8px; color: #000; font-weight: 900;
+    line-height: 1.25;
   }
   .print-tbl {
     width: 100%; table-layout: fixed; border-collapse: collapse;
-    margin-bottom: 14px; font-size: 9.5pt; color: #000; border: 2.5px solid #000;
+    margin-bottom: 8px; font-size: calc(8.8pt * var(--print-scale, 1)); color: #000; border: 2px solid #000;
   }
   .print-tbl th, .print-tbl td {
-    position: static !important; border: 2px solid #000 !important;
-    padding: 8px 10px; text-align: left; vertical-align: middle; word-break: break-word;
+    position: static !important; border: 1.5px solid #000 !important;
+    padding: calc(4.5px * var(--print-scale, 1)) 8px;
+    text-align: left; vertical-align: middle; word-break: break-word; line-height: 1.25;
   }
-  .print-tbl th { background: #cbd5e1 !important; width: 18%; font-weight: 900; color: #000 !important; text-align: center; }
-  .print-tbl td { width: 32%; background: #fff !important; color: #000 !important; }
-  .print-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-  .print-photo-card { border: 2.5px solid #000; padding: 0; text-align: center; background: #fff; color: #000; }
+  .print-tbl th {
+    background: #cbd5e1 !important; width: 19%; font-weight: 900;
+    color: #000 !important; text-align: center; white-space: nowrap;
+  }
+  .print-tbl td { width: 31%; background: #fff !important; color: #000 !important; font-weight: 600; }
+  .print-photos {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;
+  }
+  .print-photo-card { border: 2px solid #000; padding: 0; text-align: center; background: #fff; color: #000; }
   .print-photo-hdr {
-    font-weight: 900; font-size: 10pt; padding: 7px;
-    background: #cbd5e1; border-bottom: 2px solid #000; color: #000;
+    font-weight: 900; font-size: calc(9pt * var(--print-scale, 1)); padding: 4px;
+    background: #cbd5e1; border-bottom: 1.5px solid #000; color: #000;
   }
-  .print-photo-body { padding: 8px; min-height: 170px; display: flex; align-items: center; justify-content: center; background: #fff; }
-  .print-photo-card img { max-width: 100%; max-height: 75mm; object-fit: contain; }
+  .print-photo-body {
+    padding: 5px;
+    height: calc(48mm * var(--print-scale, 1));
+    min-height: calc(48mm * var(--print-scale, 1));
+    max-height: calc(48mm * var(--print-scale, 1));
+    display: flex; align-items: center; justify-content: center; background: #fff; overflow: hidden;
+  }
+  .print-photo-card img {
+    max-width: 100%;
+    max-height: calc(45mm * var(--print-scale, 1));
+    object-fit: contain;
+  }
   .print-sign-tbl {
     width: 100%; table-layout: fixed; border-collapse: collapse;
-    font-size: 9.5pt; color: #000; border: 2.5px solid #000;
+    font-size: calc(9pt * var(--print-scale, 1)); color: #000; border: 2px solid #000;
   }
   .print-sign-tbl th, .print-sign-tbl td {
-    position: static !important; width: 33.33%; border: 2px solid #000 !important;
-    padding: 8px 14px; vertical-align: middle;
+    position: static !important; width: 33.333%; border: 1.5px solid #000 !important;
+    padding: calc(4px * var(--print-scale, 1)) 10px; vertical-align: middle;
   }
   .print-sign-tbl th { background: #cbd5e1 !important; font-weight: 900; color: #000 !important; text-align: center; }
-  .print-sign-tbl td { height: 58px; background: #fff !important; color: #000 !important; font-weight: 800; }
-  .sign-cell-inner {
-    display: flex; align-items: center; justify-content: space-between; width: 100%; height: 100%;
+  .print-sign-tbl td {
+    height: calc(36px * var(--print-scale, 1));
+    background: #fff !important; color: #000 !important; font-weight: 800;
   }
-  .sign-name { flex: 1; text-align: center; font-size: 10.5pt; font-weight: 800; color: #000; }
-  .sign-stamp { color: #334155; font-size: 9.5pt; font-weight: 700; flex-shrink: 0; margin-left: 8px; }
+  .sign-cell-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: calc(26px * var(--print-scale, 1)); }
+  .sign-name { flex: 1; text-align: center; font-weight: 800; color: #000; }
+  .sign-stamp { color: #334155; font-weight: 900; margin-left: 8px; }
+
+  /* 1장당 1건(크게) 모드 */
+  body.print-mode-1up .print-page { padding: calc(18px * var(--print-scale, 1)); }
+  body.print-mode-1up .print-page h2 { font-size: calc(14pt * var(--print-scale, 1)); margin-bottom: 12px; }
+  body.print-mode-1up .print-tbl { font-size: calc(9.5pt * var(--print-scale, 1)); margin-bottom: 12px; }
+  body.print-mode-1up .print-tbl th, body.print-mode-1up .print-tbl td { padding: calc(7px * var(--print-scale, 1)) 10px; }
+  body.print-mode-1up .print-photo-body {
+    height: calc(82mm * var(--print-scale, 1));
+    min-height: calc(82mm * var(--print-scale, 1));
+    max-height: calc(82mm * var(--print-scale, 1));
+  }
+  body.print-mode-1up .print-photo-card img { max-height: calc(78mm * var(--print-scale, 1)); }
+  body.print-mode-1up .print-sign-tbl td { height: calc(54px * var(--print-scale, 1)); }
+
+  @page { size: A4 portrait; margin: 7mm 9mm; }
   @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body > *:not(#print-area) { display: none !important; }
     #print-area { display: block !important; background: #fff; color: #000; }
-    .print-page { page-break-after: always; padding: 10mm; border: 2.5px solid #000; margin-bottom: 10mm; box-shadow: none; }
+    .print-page {
+      padding: calc(3.8mm * var(--print-scale, 1)) calc(4.5mm * var(--print-scale, 1));
+      border: 2px solid #000;
+      margin-bottom: 4.5mm;
+      box-shadow: none;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: auto;
+      break-after: auto;
+    }
+    body:not(.print-mode-1up) .print-page:nth-child(2n) {
+      page-break-after: always !important;
+      break-after: page !important;
+      margin-bottom: 0;
+    }
+    body.print-mode-1up .print-page {
+      page-break-after: always !important;
+      break-after: page !important;
+      padding: calc(8mm * var(--print-scale, 1));
+    }
+    .print-page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
   }
 </style>
 </head>
@@ -399,13 +461,24 @@
         <h3>🖨️ 사진대지 미리보기</h3>
         <span id="report-photo-status" class="badge sync-pending">⏳ 사진 불러오는 중...</span>
       </div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <select id="print-layout-sel" onchange="setPrintLayout(this.value)" style="width:auto; padding:6px 10px; font-size:0.8rem; font-weight:700;">
+          <option value="2up" selected>📄 A4 1장당 2건 (기본)</option>
+          <option value="1up">📄 A4 1장당 1건 (크게)</option>
+        </select>
+        <select id="print-scale-sel" onchange="setPrintScale(this.value)" style="width:auto; padding:6px 10px; font-size:0.8rem; font-weight:700;" title="프린터 여백에 맞춰 사진대지 크기 미세 조절">
+          <option value="0.85">🔍 크기 85% (작게)</option>
+          <option value="0.93">🔍 크기 93%</option>
+          <option value="1" selected>🔍 크기 100% (기본)</option>
+          <option value="1.08">🔍 크기 108%</option>
+          <option value="1.15">🔍 크기 115% (크게)</option>
+        </select>
         <button type="button" class="btn btn-sm btn-primary" id="btn-exec-print" onclick="executeBrowserPrint()">🖨️ 인쇄 / PDF 저장</button>
         <button type="button" class="btn btn-sm" onclick="closePhotoReportModal()">✕ 닫기</button>
       </div>
     </div>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">
-      아래 미리보기에서 전·후 사진을 확인한 뒤 <strong>[🖨️ 인쇄 / PDF 저장]</strong>을 누르세요. (프린터 대상에서 'PDF로 저장'을 선택하면 파일로 저장됩니다.)
+      기본값은 <strong>A4 1장에 사진대지 2건(위·아래)</strong>이 들어가도록 맞춰져 있습니다. 상단에서 <strong>1장당 2건/1건</strong> 및 <strong>크기(%)</strong>를 조절한 뒤 <strong>[🖨️ 인쇄 / PDF 저장]</strong>을 누르세요.
     </p>
     <div id="report-preview-body" style="flex:1; overflow-y:auto; background:#334155; color:#000; padding:20px; border-radius:10px; border:2px solid #0f172a;"></div>
   </div>
@@ -1385,6 +1458,13 @@ function printPhotoReport() {
     if (img.complete) updateProgress();
     else { img.onload = updateProgress; img.onerror = updateProgress; }
   });
+}
+function setPrintLayout(mode) {
+  document.body.classList.toggle('print-mode-1up', mode === '1up');
+}
+function setPrintScale(scaleVal) {
+  const s = parseFloat(scaleVal) || 1;
+  document.documentElement.style.setProperty('--print-scale', String(s));
 }
 function closePhotoReportModal() {
   document.getElementById('photo-report-modal').classList.add('hidden');
