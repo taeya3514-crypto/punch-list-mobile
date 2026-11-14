@@ -531,8 +531,17 @@
   </div>
 </div>
 
-<div id="img-modal" class="modal-overlay hidden" onclick="this.classList.add('hidden')">
-  <img id="img-modal-src" style="max-width:95vw; max-height:92vh; border-radius:10px;">
+<div id="img-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeFullPhotoModal()">
+  <div style="display:flex; flex-direction:column; align-items:center; gap:10px; max-width:96vw; max-height:94vh;">
+    <div style="display:flex; gap:8px; align-items:center; background:rgba(15,23,42,0.92); padding:6px 14px; border-radius:999px; border:1px solid var(--card-border);">
+      <span style="font-size:0.8rem; color:#cbd5e1; font-weight:700;">🔍 고화질 상세사진 (2200px) · 사진 클릭 시 2배 확대</span>
+      <button type="button" class="btn btn-sm" onclick="toggleFullPhotoZoom()">🔎 확대/원래대로</button>
+      <button type="button" class="btn btn-sm btn-danger" onclick="closeFullPhotoModal()">✕ 닫기</button>
+    </div>
+    <div id="img-modal-scroll" style="overflow:auto; max-width:95vw; max-height:86vh; border-radius:12px; border:2px solid #334155; background:#090d16; display:flex; align-items:center; justify-content:center;">
+      <img id="img-modal-src" onclick="toggleFullPhotoZoom()" style="width:min(90vw, 1200px); max-height:84vh; object-fit:contain; cursor:zoom-in; transition:width 0.18s ease;">
+    </div>
+  </div>
 </div>
 <div id="print-area"></div>
 <div id="toast"></div>
@@ -610,7 +619,14 @@ function toast(msg, ms = 3000) {
   t.textContent = msg; t.style.display = 'block';
   clearTimeout(t._tm); t._tm = setTimeout(() => { t.style.display = 'none'; }, ms);
 }
-function thumbUrl(url) { return url ? url.replace(/([?&]sz=)w\d+/, '$1w200') : ''; }
+function photoUrlWithSize(url, size = 'w1000') {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  const m = url.match(/[?&]id=([\w-]+)/) || url.match(/\/d\/([\w-]+)/);
+  if (m && m[1]) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=${size}`;
+  return url.replace(/([?&]sz=)w\d+/, `$1${size}`);
+}
+function thumbUrl(url) { return photoUrlWithSize(url, 'w240'); }
 
 // ── IndexedDB 오프라인 큐 ──
 const OfflineQueueDB = {
@@ -1316,11 +1332,36 @@ async function onPhotoPick(ev, type) {
 function updatePhotoPreviews() {
   ['before','after'].forEach(t => {
     const img = document.getElementById('prev-' + t);
-    if (tempPhotos[t]) { img.src = tempPhotos[t]; img.classList.remove('hidden'); }
+    if (tempPhotos[t]) { img.src = photoUrlWithSize(tempPhotos[t], 'w1000'); img.classList.remove('hidden'); }
     else { img.src = ''; img.classList.add('hidden'); }
   });
 }
-function viewFullPhoto(src) { document.getElementById('img-modal-src').src = src; document.getElementById('img-modal').classList.remove('hidden'); }
+let isFullPhotoZoomed = false;
+function viewFullPhoto(src) {
+  const el = document.getElementById('img-modal-src');
+  isFullPhotoZoomed = false;
+  el.style.width = 'min(90vw, 1200px)';
+  el.style.maxHeight = '84vh';
+  el.style.cursor = 'zoom-in';
+  el.src = photoUrlWithSize(src, 'w2200');
+  document.getElementById('img-modal').classList.remove('hidden');
+}
+function toggleFullPhotoZoom() {
+  const el = document.getElementById('img-modal-src');
+  isFullPhotoZoomed = !isFullPhotoZoomed;
+  if (isFullPhotoZoomed) {
+    el.style.width = '1800px';
+    el.style.maxHeight = 'none';
+    el.style.cursor = 'zoom-out';
+  } else {
+    el.style.width = 'min(90vw, 1200px)';
+    el.style.maxHeight = '84vh';
+    el.style.cursor = 'zoom-in';
+  }
+}
+function closeFullPhotoModal() {
+  document.getElementById('img-modal').classList.add('hidden');
+}
 
 async function savePunch(e) {
   e.preventDefault();
@@ -1396,21 +1437,22 @@ async function exportExcel() {
     await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
   }
   const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('양주펀치리스트');
-  ws.columns = [{ header: 'ID', width: 8 }, { header: '동호수', width: 16 }, { header: '위치', width: 16 }, { header: '공종', width: 10 }, { header: '유형', width: 10 }, { header: '내용', width: 32 }, { header: '상태', width: 10 }, { header: '업체', width: 14 }, { header: '점검등록자', width: 14 }, { header: '조치입력자', width: 14 }, { header: '시공전', width: 20 }, { header: '시공후', width: 20 }];
+  ws.columns = [{ header: 'ID', width: 8 }, { header: '동호수', width: 16 }, { header: '위치', width: 16 }, { header: '공종', width: 10 }, { header: '유형', width: 10 }, { header: '내용', width: 32 }, { header: '상태', width: 10 }, { header: '업체', width: 14 }, { header: '점검등록자', width: 14 }, { header: '조치입력자', width: 14 }, { header: '시공전', width: 24 }, { header: '시공후', width: 24 }];
+  toast('📊 고화질(1200px) 사진 포함 엑셀 생성 중...');
   for (let r = 0; r < targetList.length; r++) {
     const it = targetList[r];
     const row = ws.addRow([it['ID'], it['동호수'], it['위치'], it['공종'], it['유형'], it['내용'], it['상태'], it['업체명'], it['등록자']||'', it['최종수정자']||'', '', '']);
     const pb = it['시공전사진URL'] || it['사진URL'] || '', pa = it['시공후사진URL'] || '';
-    if (pb || pa) row.height = 95;
+    if (pb || pa) row.height = 115;
     for (const [u, c] of [[pb, 10], [pa, 11]]) {
       const m = u.match(/[?&]id=([\w-]+)/) || u.match(/\/d\/([\w-]+)/);
       if (!m) continue;
       try {
-        const res = await fetch(`https://lh3.googleusercontent.com/d/${m[1]}=w480`);
+        const res = await fetch(`https://lh3.googleusercontent.com/d/${m[1]}=w1200`);
         if (res.ok) {
           const buf = await res.arrayBuffer();
           const imgId = wb.addImage({ buffer: buf, extension: 'jpeg' });
-          ws.addImage(imgId, { tl: { col: c + 0.05, row: r + 1.05 }, ext: { width: 130, height: 88 } });
+          ws.addImage(imgId, { tl: { col: c + 0.05, row: r + 1.05 }, ext: { width: 165, height: 112 } });
         }
       } catch {}
     }
