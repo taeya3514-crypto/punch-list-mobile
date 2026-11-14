@@ -199,6 +199,7 @@
   <div class="hdr-actions">
     <button class="btn btn-sm collapsible-item" id="btn-gis" onclick="openGoogleSignIn()">🔐 구글 로그인</button>
     <button class="btn btn-sm" onclick="toggleViewMode()">📋 뷰</button>
+    <button class="btn btn-sm" onclick="openListConfigModal()" title="동·위치·공종·유형·업체 목록 직접 수정">⚙️ 목록설정</button>
     <button class="btn btn-sm collapsible-item" onclick="openRegSummary()">👥 등록자별</button>
     <button class="btn btn-sm collapsible-item" onclick="document.getElementById('import-modal').classList.remove('hidden')">📥 CSV</button>
     <button class="btn btn-sm btn-success collapsible-item" onclick="exportExcel()">📊 엑셀(.xlsx)</button>
@@ -347,6 +348,38 @@
   </div>
 </div>
 
+<!-- ⚙️ 현장 목록 설정 모달 -->
+<div id="list-config-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeListConfigModal()">
+  <div class="modal-box" style="max-width:640px;">
+    <div class="modal-hdr">
+      <h3>⚙️ 현장 목록 직접 관리 (추가·수정·순서·삭제)</h3>
+      <button class="btn btn-sm" onclick="closeListConfigModal()">✕</button>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">
+      항목을 직접 추가·수정·삭제한 뒤 <strong>[💾 저장]</strong>을 누르면 모든 기기(PC·휴대폰)에 즉시 반영됩니다.
+    </p>
+    <div id="cfg-tabs" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+      <button type="button" class="btn btn-sm btn-primary" data-tab="locations" onclick="switchCfgTab('locations')">📍 위치</button>
+      <button type="button" class="btn btn-sm" data-tab="trades" onclick="switchCfgTab('trades')">🛠 공종</button>
+      <button type="button" class="btn btn-sm" data-tab="types" onclick="switchCfgTab('types')">🏷 유형</button>
+      <button type="button" class="btn btn-sm" data-tab="dongs" onclick="switchCfgTab('dongs')">🏢 동 목록</button>
+      <button type="button" class="btn btn-sm" data-tab="vendors" onclick="switchCfgTab('vendors')">🏭 협력업체</button>
+    </div>
+    <div style="display:flex; gap:6px; margin-bottom:10px;">
+      <input id="cfg-new-val" placeholder="새 항목 이름 입력" onkeydown="if(event.key==='Enter'){event.preventDefault();addCfgItem();}">
+      <button type="button" class="btn btn-sm btn-success" style="white-space:nowrap;" onclick="addCfgItem()">➕ 추가</button>
+    </div>
+    <div id="cfg-list-box" style="max-height:46vh; overflow-y:auto; border:1px solid var(--card-border); border-radius:10px; padding:8px; background:#0f172a; display:flex; flex-direction:column; gap:6px;"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:14px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-sm btn-danger" onclick="resetCfgToDefaults()">🔄 기본값 복원</button>
+      <div style="display:flex; gap:8px; margin-left:auto;">
+        <button type="button" class="btn btn-sm" onclick="closeListConfigModal()">취소</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="saveListConfig()">💾 저장 (전체 적용)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- CSV 업로드 모달 -->
 <div id="import-modal" class="modal-overlay hidden" onclick="if(event.target===this) this.classList.add('hidden')">
   <div class="modal-box" style="max-width:460px;">
@@ -382,7 +415,17 @@
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw491M3A108qj8AQst3yxvphswCM0Dq4_9ghnlFJJoXyyS1ecRrLHl7P9wuKSWg-bLGNw/exec';
 const GIS_CLIENT_ID = '20343862397-psp91fm1c9vdshhj6l738j46uv22p9he.apps.googleusercontent.com';
 const DEFAULT_SITE = '양주역푸르지오';
-const DEFAULT_DONG_LIST = ['101동','102동','103동','104동','105동','106동','107동','108동','지하1층','지하2층','지하3층','상가동'];
+const INIT_DEFAULT_DONG_LIST = ['101동','102동','103동','104동','105동','106동','107동','108동','지하1층','지하2층','지하3층','상가동'];
+const INIT_PRO_LOCATIONS = ['거실','안방','침실1','침실2','침실3','알파룸','주방','공용 욕실','부부 욕실','발코니','현관','대피소'];
+const INIT_PRO_TRADES = ['건축','기계','전기','소방','토목','조경','골조1','골조2','ALC','PL창호','디딤석','방수','목창호','내장','타일','미장'];
+const INIT_PRO_TYPES = ['파손','미시공','오시공','오염/흠집','기능불량','청소','시공불량','단차','오염','기타'];
+const INIT_PRO_VENDORS = ['디에이치건업','우창건설','SYC','윈스테크','선구산업㈜','예창','차령건설','구보공영㈜','㈜통광'];
+
+let DEFAULT_DONG_LIST = [...INIT_DEFAULT_DONG_LIST];
+let proLocations = [...INIT_PRO_LOCATIONS];
+let proTrades = [...INIT_PRO_TRADES];
+let proTypes = [...INIT_PRO_TYPES];
+let proVendors = [...INIT_PRO_VENDORS];
 const TRADES = {
   '건축': ['창호','조적','미장','방수','타일','수납가구','도배','마루','기타'],
   '기계': ['위생','배관','덕트','보일러','기타'],
@@ -616,7 +659,102 @@ function syncStickyHeight() {
 }
 window.addEventListener('resize', syncStickyHeight);
 
+// ── ⚙️ 사용자 정의 목록 직접 관리 (PRO) ──
+let cfgDraft = null;
+let currentCfgTab = 'locations';
+function getProCfgKey() { return 'PUNCH_PRO_CUSTOM_CFG_V1_' + currentSite; }
+function getCurrentListConfig() {
+  return { v: 1, ts: Date.now(), locations: [...proLocations], trades: [...proTrades], types: [...proTypes], dongs: [...DEFAULT_DONG_LIST], vendors: [...proVendors] };
+}
+function applyCustomListConfig(cfg, saveLocal = true) {
+  if (!cfg || typeof cfg !== 'object') return;
+  if (Array.isArray(cfg.locations) && cfg.locations.length) proLocations = cfg.locations.filter(Boolean);
+  if (Array.isArray(cfg.trades) && cfg.trades.length) proTrades = cfg.trades.filter(Boolean);
+  if (Array.isArray(cfg.types) && cfg.types.length) proTypes = cfg.types.filter(Boolean);
+  if (Array.isArray(cfg.dongs) && cfg.dongs.length) DEFAULT_DONG_LIST = cfg.dongs.filter(Boolean);
+  if (Array.isArray(cfg.vendors) && cfg.vendors.length) proVendors = cfg.vendors.filter(Boolean);
+  if (saveLocal) { try { localStorage.setItem(getProCfgKey(), JSON.stringify(cfg)); } catch {} }
+  populateDongOptions();
+  populateVendorDatalist();
+  updateFilterOptions();
+}
+function loadLocalCustomListConfig() {
+  try {
+    const raw = localStorage.getItem(getProCfgKey());
+    if (raw) applyCustomListConfig(JSON.parse(raw), false);
+  } catch {}
+}
+function openListConfigModal() {
+  cfgDraft = getCurrentListConfig();
+  currentCfgTab = 'locations';
+  switchCfgTab('locations');
+  document.getElementById('list-config-modal').classList.remove('hidden');
+}
+function closeListConfigModal() { document.getElementById('list-config-modal').classList.add('hidden'); }
+function switchCfgTab(tab) {
+  syncDraftFromInputs();
+  currentCfgTab = tab;
+  document.querySelectorAll('#cfg-tabs button').forEach(b => b.classList.toggle('btn-primary', b.dataset.tab === tab));
+  document.getElementById('cfg-new-val').value = '';
+  renderCfgList();
+}
+function syncDraftFromInputs() {
+  if (!cfgDraft) return;
+  const rows = document.querySelectorAll('#cfg-list-box .cfg-row');
+  if (!rows.length) return;
+  const arr = [];
+  rows.forEach(r => { const val = r.querySelector('.cfg-inp-main')?.value.trim(); if (val) arr.push(val); });
+  cfgDraft[currentCfgTab] = arr;
+}
+function renderCfgList() {
+  const box = document.getElementById('cfg-list-box');
+  const list = cfgDraft[currentCfgTab] || [];
+  if (!list.length) { box.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-muted);font-size:0.84rem;">항목이 없습니다.</div>'; return; }
+  box.innerHTML = list.map((item, idx) => `<div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
+    <span style="font-size:0.76rem;color:var(--text-muted);width:24px;text-align:right;">${idx + 1}.</span>
+    <input class="cfg-inp-main" value="${esc(item)}" style="flex:1;padding:6px 9px;font-size:0.86rem;">
+    <button type="button" class="btn btn-sm" style="padding:4px 7px;min-height:30px;" onclick="moveCfgItem(${idx},-1)">▲</button>
+    <button type="button" class="btn btn-sm" style="padding:4px 7px;min-height:30px;" onclick="moveCfgItem(${idx},1)">▼</button>
+    <button type="button" class="btn btn-sm btn-danger" style="padding:4px 8px;min-height:30px;" onclick="removeCfgItem(${idx})">🗑</button>
+  </div>`).join('');
+}
+function addCfgItem() {
+  syncDraftFromInputs();
+  const inp = document.getElementById('cfg-new-val');
+  const val = inp.value.trim();
+  if (!val) return toast('추가할 항목 이름을 입력해 주세요.');
+  const arr = cfgDraft[currentCfgTab] || [];
+  if (!arr.includes(val)) arr.push(val);
+  inp.value = '';
+  renderCfgList();
+}
+function moveCfgItem(idx, dir) {
+  syncDraftFromInputs();
+  const arr = cfgDraft[currentCfgTab], t = idx + dir;
+  if (t < 0 || t >= arr.length) return;
+  [arr[idx], arr[t]] = [arr[t], arr[idx]];
+  renderCfgList();
+}
+function removeCfgItem(idx) {
+  syncDraftFromInputs();
+  cfgDraft[currentCfgTab].splice(idx, 1);
+  renderCfgList();
+}
+function resetCfgToDefaults() {
+  if (!confirm('목록을 기본값으로 복원할까요?')) return;
+  cfgDraft = { v: 1, ts: Date.now(), locations: [...INIT_PRO_LOCATIONS], trades: [...INIT_PRO_TRADES], types: [...INIT_PRO_TYPES], dongs: [...INIT_DEFAULT_DONG_LIST], vendors: [...INIT_PRO_VENDORS] };
+  renderCfgList();
+}
+async function saveListConfig() {
+  syncDraftFromInputs();
+  cfgDraft.ts = Date.now();
+  applyCustomListConfig(cfgDraft, true);
+  closeListConfigModal();
+  toast('✅ 현장 목록 설정이 저장·적용되었습니다.');
+}
+
 async function initApp() {
+  loadLocalCustomListConfig();
   applyTopCollapseUi();
   const cached = localStorage.getItem('PUNCH_LIST_CACHE_V1_' + currentSite);
   if (cached) { try { serverList = normalizePunchList(JSON.parse(cached) || [], false); } catch {} }
@@ -652,13 +790,19 @@ async function loadConfig() {
   } catch {}
 }
 function populateDongOptions() {
-  const list = configData?.dongList?.length ? configData.dongList : DEFAULT_DONG_LIST;
+  const list = DEFAULT_DONG_LIST.length ? DEFAULT_DONG_LIST : (configData?.dongList || INIT_DEFAULT_DONG_LIST);
   document.getElementById('fi-dong').innerHTML = '<option value="">미정</option>' + list.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  const locDl = document.getElementById('loc-datalist');
+  if (locDl) locDl.innerHTML = proLocations.map(l => `<option value="${esc(l)}">`).join('');
+  const trSel = document.getElementById('fi-trade');
+  if (trSel) trSel.innerHTML = proTrades.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  const tySel = document.getElementById('fi-type');
+  if (tySel) tySel.innerHTML = proTypes.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
 }
 function populateVendorDatalist(tradeFilter) {
-  const list = configData?.vendorList || [];
+  const list = [...new Set([...proVendors, ...(configData?.vendorList || [])])];
   const map = configData?.vendorTradeMap || {};
-  const filtered = tradeFilter ? list.filter(n => (map[n] || []).includes(tradeFilter)) : list;
+  const filtered = (tradeFilter && Object.keys(map).length && TRADES[tradeFilter]) ? list.filter(n => !map[n] || (map[n] || []).includes(tradeFilter)) : list;
   document.getElementById('vendor-datalist').innerHTML = filtered.map(n => `<option value="${esc(n)}">`).join('');
 }
 
