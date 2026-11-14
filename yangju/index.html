@@ -27,10 +27,11 @@
   .sticky-top-wrap {
     position: sticky; top: 0; z-index: 900;
     background: var(--bg); padding-top: 4px; padding-bottom: 6px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.92);
   }
   header {
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 14px;
-    padding: 10px 14px; margin-bottom: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    padding: 9px 14px; margin-bottom: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.35);
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
   }
   .hdr-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -59,27 +60,26 @@
 
   .filter-bar {
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px;
-    padding: 9px 10px; margin-bottom: 4px;
+    padding: 8px 10px; margin-bottom: 6px;
     display: grid; grid-template-columns: 2fr repeat(5, 1fr) auto; gap: 6px; align-items: center;
   }
   @media (max-width: 960px) {
     .filter-bar { grid-template-columns: 1fr 1fr; }
-    .sticky-top-wrap { position: static; }
   }
 
-  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }
   .stat-card {
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px;
-    padding: 10px; cursor: pointer; text-align: center;
+    padding: 8px 10px; cursor: pointer; text-align: center;
   }
   .stat-card.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(56,189,248,0.25); }
-  .stat-num { font-size: 1.45rem; font-weight: 900; }
-  .stat-lbl { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; }
+  .stat-num { font-size: 1.35rem; font-weight: 900; }
+  .stat-lbl { font-size: 0.76rem; color: var(--text-muted); font-weight: 700; }
 
   .vendor-rank-bar {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px;
-    padding: 9px 12px; margin-bottom: 10px;
+    padding: 8px 12px; margin-bottom: 4px;
   }
   .rank-chip {
     background: #0f172a; border: 1px solid var(--card-border); border-radius: 999px;
@@ -89,12 +89,19 @@
 
   .chk-cell { width: 34px; text-align: center; }
   .chk-box { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; vertical-align: middle; }
-  .sel-bar { display: none; align-items: center; gap: 8px; background: rgba(56,189,248,0.12); border: 1px solid var(--primary); border-radius: 10px; padding: 6px 12px; margin-bottom: 8px; font-size: 0.84rem; font-weight: 800; }
+  .sel-bar { display: none; align-items: center; gap: 8px; background: rgba(56,189,248,0.12); border: 1px solid var(--primary); border-radius: 10px; padding: 6px 12px; margin-top: 6px; font-size: 0.84rem; font-weight: 800; }
   .sel-bar.show { display: flex; flex-wrap: wrap; }
 
-  .tbl-wrap { background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px; overflow-x: auto; }
+  .tbl-wrap {
+    background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px;
+    overflow: auto; max-height: calc(100vh - var(--sticky-h, 250px) - 18px);
+  }
   table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-  th { background: #0f172a; color: var(--text-muted); text-align: left; padding: 10px; font-weight: 800; border-bottom: 1.5px solid var(--card-border); white-space: nowrap; }
+  th {
+    position: sticky; top: 0; z-index: 20;
+    background: #0f172a; color: var(--text-muted); text-align: left; padding: 10px;
+    font-weight: 800; border-bottom: 1.5px solid var(--card-border); white-space: nowrap;
+  }
   td { padding: 9px 10px; border-bottom: 1px solid var(--card-border); vertical-align: middle; }
   tr.clickable:hover { background: rgba(56,189,248,0.08); cursor: pointer; }
   .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--card-border); cursor: pointer; }
@@ -188,7 +195,6 @@
   <select id="f-vendor" onchange="applyFilters()"><option value="">전체 업체</option></select>
   <button class="btn btn-sm" onclick="resetFilters()">초기화</button>
 </div>
-</div>
 
 <div class="stats-grid">
   <div class="stat-card active" data-st="" onclick="filterStatus('')"><div class="stat-num" id="st-all">0</div><div class="stat-lbl">전체</div></div>
@@ -211,6 +217,7 @@
   <button class="btn btn-sm btn-success" onclick="exportExcel()">📊 선택 엑셀</button>
   <button class="btn btn-sm btn-primary" onclick="printPhotoReport()">🖨️ 선택 인쇄</button>
   <button class="btn btn-sm" onclick="clearSelection()">선택 해제</button>
+</div>
 </div>
 
 <div id="tbl-wrap" class="tbl-wrap hidden">
@@ -270,7 +277,7 @@
         </div>
         <div>
           <label>상태</label>
-          <select id="fi-status"><option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option></select>
+          <select id="fi-status" onchange="manualStatusTouched = true"><option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option></select>
         </div>
         <div style="display:flex; align-items:flex-end;">
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--primary);">
@@ -521,12 +528,59 @@ function openGoogleSignIn() {
   } else toast('구글 로그인 모듈 로딩 중...');
 }
 
+// ── 사진 2장 기본 완료 자동 표시 및 틀고정 높이 동기화 ──
+let manualStatusTouched = false;
+function getManualStatusMap() {
+  try { return JSON.parse(localStorage.getItem('PUNCH_MANUAL_STATUS_' + SITE_NAME) || '{}'); } catch { return {}; }
+}
+function setManualStatusOverride(id, st) {
+  if (!id) return;
+  const map = getManualStatusMap();
+  if (st) map[String(id)] = st; else delete map[String(id)];
+  try { localStorage.setItem('PUNCH_MANUAL_STATUS_' + SITE_NAME, JSON.stringify(map)); } catch {}
+}
+function hasTwoPhotos(it) {
+  const pb = String(it['시공전사진URL'] || it['사진URL'] || '').trim();
+  const pa = String(it['시공후사진URL'] || '').trim();
+  return Boolean(pb && pa);
+}
+function normalizePunchList(list, syncSheet = false) {
+  const manualMap = getManualStatusMap();
+  const toSync = [];
+  const out = (list || []).map(raw => {
+    const it = { ...raw };
+    const idStr = String(it['ID'] || '');
+    if (hasTwoPhotos(it)) {
+      const manual = manualMap[idStr];
+      if (manual) {
+        it['상태'] = manual;
+      } else {
+        if (it['상태'] !== '완료' && syncSheet && idStr) toSync.push(idStr);
+        it['상태'] = '완료';
+      }
+    }
+    return it;
+  });
+  if (toSync.length && navigator.onLine) {
+    toSync.forEach(id => {
+      gasCall('updatePunch', { id, data: { '상태': '완료' } }).catch(() => {});
+    });
+  }
+  return out;
+}
+function syncStickyHeight() {
+  const el = document.querySelector('.sticky-top-wrap');
+  if (el) document.documentElement.style.setProperty('--sticky-h', (el.offsetHeight + 12) + 'px');
+}
+window.addEventListener('resize', syncStickyHeight);
+
 // ── 초기화 ──
 async function initApp() {
   populateStaticSelects();
   const cached = localStorage.getItem('PUNCH_LIST_CACHE_V1_' + SITE_NAME);
-  if (cached) { try { serverList = JSON.parse(cached) || []; } catch {} }
+  if (cached) { try { serverList = normalizePunchList(JSON.parse(cached) || [], false); } catch {} }
   applyFilters();
+  syncStickyHeight();
   loadConfig();
   await loadList(!serverList.length);
   await processOfflineQueue();
@@ -551,10 +605,11 @@ async function loadList(showToast = false) {
   try {
     const res = await gasCall('getPunchList', {});
     if (Array.isArray(res)) {
-      serverList = res.slice().reverse();
-      try { localStorage.setItem('PUNCH_LIST_CACHE_V1_' + SITE_NAME, JSON.stringify(res)); } catch {}
+      serverList = normalizePunchList(res.slice().reverse(), true);
+      try { localStorage.setItem('PUNCH_LIST_CACHE_V1_' + SITE_NAME, JSON.stringify(serverList.slice().reverse())); } catch {}
       updateFilterOptions();
       applyFilters();
+      syncStickyHeight();
       if (showToast) toast('✅ 양주역푸르지오 동기화 완료');
     }
   } catch (e) {
@@ -759,6 +814,7 @@ function onTradeChange() {
 
 function openAddModal() {
   tempPhotos = { before: '', after: '' };
+  manualStatusTouched = false;
   document.getElementById('punch-form').reset();
   document.getElementById('fi-id').value = '';
   document.getElementById('modal-title').textContent = '➕ 신규 펀치 등록 (양주 전용)';
@@ -771,6 +827,7 @@ function openEditModal(id) {
   const it = serverList.find(i => String(i['ID']) === String(id));
   if (!it) return;
   tempPhotos = { before: it['시공전사진URL'] || it['사진URL'] || '', after: it['시공후사진URL'] || '' };
+  manualStatusTouched = false;
   document.getElementById('fi-id').value = it['ID'];
   document.getElementById('modal-title').textContent = `✏️ 펀치 #${it['ID']} 수정`;
   document.getElementById('btn-delete').classList.remove('hidden');
@@ -793,17 +850,26 @@ function openEditModal(id) {
   if (YANGJU_TYPES.includes(it['유형'])) tySel.value = it['유형'];
 
   document.getElementById('fi-vendor').value = it['업체명'] || '';
-  document.getElementById('fi-status').value = it['상태'] || '신규';
+  const hasBoth = Boolean(tempPhotos.before && tempPhotos.after);
+  const manualOverride = getManualStatusMap()[String(it['ID'])];
+  document.getElementById('fi-status').value = hasBoth ? (manualOverride || '완료') : (it['상태'] || '신규');
   document.getElementById('fi-content').value = it['내용'] || '';
   updatePhotoPreviews();
   document.getElementById('punch-modal').classList.remove('hidden');
 }
 function closePunchModal() { document.getElementById('punch-modal').classList.add('hidden'); }
 
+async function loadImageSource_(file) {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    return await createImageBitmap(file);
+  }
+}
 async function onPhotoPick(ev, type) {
   const file = ev.target.files?.[0]; ev.target.value = '';
   if (!file) return;
-  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const bmp = await loadImageSource_(file);
   const scale = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
   const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
@@ -823,6 +889,7 @@ async function onPhotoPick(ev, type) {
   updatePhotoPreviews();
   if (tempPhotos.before && tempPhotos.after) {
     document.getElementById('fi-status').value = '완료';
+    manualStatusTouched = false;
     toast('✅ 전·후 사진 2장이 모두 등록되어 상태가 "완료"로 자동 설정되었습니다.');
   }
 }
@@ -839,11 +906,17 @@ async function savePunch(e) {
   e.preventDefault();
   const id = v('fi-id');
   const loc = v('fi-loc') === '__custom__' ? v('fi-loc-custom').trim() : v('fi-loc');
+  const hasBothPhotos = Boolean(tempPhotos.before && tempPhotos.after);
+  const finalStatus = (hasBothPhotos && !manualStatusTouched) ? '완료' : v('fi-status');
+  if (id) {
+    if (hasBothPhotos && manualStatusTouched && finalStatus !== '완료') setManualStatusOverride(id, finalStatus);
+    else setManualStatusOverride(id, null);
+  }
   const fields = {
     '현장': SITE_NAME, '공구': '', '동': v('fi-dong'), '호수': v('fi-ho'),
     '동호수': `${v('fi-dong')} ${v('fi-ho')}`.trim(), '위치': loc,
     '공종': v('fi-trade'), '세부공종': '', '유형': v('fi-type'),
-    '업체명': v('fi-vendor'), '상태': v('fi-status'), '내용': v('fi-content').trim(),
+    '업체명': v('fi-vendor'), '상태': finalStatus, '내용': v('fi-content').trim(),
     '시공전사진URL': tempPhotos.before.startsWith('http') ? tempPhotos.before : '',
     '시공후사진URL': tempPhotos.after.startsWith('http') ? tempPhotos.after : ''
   };
