@@ -63,10 +63,6 @@
     padding: 8px 10px; margin-bottom: 6px;
     display: grid; grid-template-columns: 2fr repeat(5, 1fr) auto; gap: 6px; align-items: center;
   }
-  @media (max-width: 960px) {
-    .filter-bar { grid-template-columns: 1fr 1fr; }
-  }
-
   .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }
   .stat-card {
     background: var(--card-bg); border: 1.5px solid var(--card-border); border-radius: 12px;
@@ -86,6 +82,33 @@
     padding: 5px 11px; font-size: 0.78rem; font-weight: 700; color: var(--text); cursor: pointer;
   }
   .rank-chip.active { border-color: var(--warning); color: var(--warning); }
+
+  /* 접기(collapsed) 상태일 때: 핵심 검색창 + 슬림 상태바만 고정 표시 */
+  .sticky-top-wrap.collapsed .collapsible-item { display: none !important; }
+  .sticky-top-wrap.collapsed .filter-bar {
+    grid-template-columns: 1fr auto;
+    padding: 6px 8px; margin-bottom: 5px;
+  }
+  .sticky-top-wrap.collapsed header {
+    padding: 7px 10px; margin-bottom: 5px;
+  }
+  .sticky-top-wrap.collapsed .stats-grid {
+    gap: 5px; margin-bottom: 2px;
+  }
+  .sticky-top-wrap.collapsed .stat-card {
+    padding: 5px 4px; display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .sticky-top-wrap.collapsed .stat-num { font-size: 1.02rem; }
+  .sticky-top-wrap.collapsed .stat-lbl { font-size: 0.74rem; }
+
+  @media (max-width: 960px) {
+    .filter-bar { grid-template-columns: 1fr 1fr; }
+    .filter-bar #f-search { grid-column: 1 / -1; }
+    .hdr-title { font-size: 0.98rem; }
+    .sticky-top-wrap:not(.collapsed) {
+      max-height: 56vh; overflow-y: auto;
+    }
+  }
 
   .chk-cell { width: 34px; text-align: center; }
   .chk-box { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; vertical-align: middle; }
@@ -166,33 +189,34 @@
 </head>
 <body>
 
-<div class="sticky-top-wrap">
+<div id="sticky-top-wrap" class="sticky-top-wrap">
 <header>
   <div class="hdr-left">
-    <div class="hdr-title">🏢 양주역푸르지오 펀치리스트 <span style="font-size:0.75rem;color:var(--text-muted);">(양주 전용)</span></div>
+    <div class="hdr-title">🏢 양주역푸르지오 <span class="collapsible-item" style="font-size:0.75rem;color:var(--text-muted);">(양주 전용)</span></div>
     <span id="sync-badge" class="badge st-완료" onclick="syncNow()" style="cursor:pointer;">✅ 동기화됨</span>
   </div>
   <div class="hdr-actions">
-    <button class="btn btn-sm" id="btn-gis" onclick="openGoogleSignIn()">🔐 구글 로그인</button>
-    <button class="btn btn-sm" onclick="toggleViewMode()">📋 뷰 전환</button>
-    <button class="btn btn-sm" onclick="openRegSummary()">👥 등록자별</button>
-    <button class="btn btn-sm btn-success" onclick="exportExcel()">📊 엑셀(.xlsx)</button>
-    <button class="btn btn-sm" onclick="printPhotoReport()">🖨️ 사진대지</button>
-    <button class="btn btn-sm" onclick="loadList(true)">🔄</button>
+    <button class="btn btn-sm collapsible-item" id="btn-gis" onclick="openGoogleSignIn()">🔐 구글 로그인</button>
+    <button class="btn btn-sm" onclick="toggleViewMode()">📋 뷰</button>
+    <button class="btn btn-sm collapsible-item" onclick="openRegSummary()">👥 등록자별</button>
+    <button class="btn btn-sm btn-success collapsible-item" onclick="exportExcel()">📊 엑셀(.xlsx)</button>
+    <button class="btn btn-sm collapsible-item" onclick="printPhotoReport()">🖨️ 사진대지</button>
+    <button class="btn btn-sm" onclick="loadList(true)" title="새로고침">🔄</button>
+    <button class="btn btn-sm btn-primary" id="btn-collapse-top" onclick="toggleTopCollapse()">🔼 접기</button>
   </div>
 </header>
 <div id="gis-container" style="display:none; margin-bottom:10px;"></div>
 
 <div class="filter-bar">
   <input id="f-search" placeholder="🔍 통합검색 (동/호수/위치/공종/유형/내용/업체)" oninput="applyFilters()">
-  <select id="f-dong" onchange="applyFilters()"><option value="">전체 동</option></select>
-  <select id="f-loc" onchange="applyFilters()"><option value="">전체 위치</option></select>
-  <select id="f-trade" onchange="applyFilters()"><option value="">전체 공종</option></select>
-  <select id="f-status" onchange="applyFilters()">
+  <select id="f-dong" class="collapsible-item" onchange="applyFilters()"><option value="">전체 동</option></select>
+  <select id="f-loc" class="collapsible-item" onchange="applyFilters()"><option value="">전체 위치</option></select>
+  <select id="f-trade" class="collapsible-item" onchange="applyFilters()"><option value="">전체 공종</option></select>
+  <select id="f-status" class="collapsible-item" onchange="applyFilters()">
     <option value="">전체 상태</option>
     <option value="신규">신규</option><option value="조치중">조치중</option><option value="완료">완료</option>
   </select>
-  <select id="f-vendor" onchange="applyFilters()"><option value="">전체 업체</option></select>
+  <select id="f-vendor" class="collapsible-item" onchange="applyFilters()"><option value="">전체 업체</option></select>
   <button class="btn btn-sm" onclick="resetFilters()">초기화</button>
 </div>
 
@@ -203,7 +227,7 @@
   <div class="stat-card" data-st="완료" onclick="filterStatus('완료')"><div class="stat-num" id="st-done" style="color:#4ade80;">0</div><div class="stat-lbl">완료</div></div>
 </div>
 
-<div class="vendor-rank-bar">
+<div class="vendor-rank-bar collapsible-item">
   <span style="font-size:0.8rem; font-weight:800; color:var(--text-muted);">🏆 미조치 협력사:</span>
   <div id="vendor-rank-chips" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
   <span style="margin-left:auto; display:flex; gap:6px;">
@@ -568,6 +592,18 @@ function normalizePunchList(list, syncSheet = false) {
   }
   return out;
 }
+let isTopCollapsed = window.innerWidth <= 768;
+function applyTopCollapseUi() {
+  const wrap = document.getElementById('sticky-top-wrap');
+  const btn = document.getElementById('btn-collapse-top');
+  if (wrap) wrap.classList.toggle('collapsed', isTopCollapsed);
+  if (btn) btn.textContent = isTopCollapsed ? '🔽 필터·현황' : '🔼 접기';
+  syncStickyHeight();
+}
+function toggleTopCollapse() {
+  isTopCollapsed = !isTopCollapsed;
+  applyTopCollapseUi();
+}
 function syncStickyHeight() {
   const el = document.querySelector('.sticky-top-wrap');
   if (el) document.documentElement.style.setProperty('--sticky-h', (el.offsetHeight + 12) + 'px');
@@ -577,6 +613,7 @@ window.addEventListener('resize', syncStickyHeight);
 // ── 초기화 ──
 async function initApp() {
   populateStaticSelects();
+  applyTopCollapseUi();
   const cached = localStorage.getItem('PUNCH_LIST_CACHE_V1_' + SITE_NAME);
   if (cached) { try { serverList = normalizePunchList(JSON.parse(cached) || [], false); } catch {} }
   applyFilters();
